@@ -1,0 +1,23 @@
+development:
+  adapter: postgresql
+  encoding: utf8
+  database: fantasy_opti
+  pool: 5
+  username: postgres
+  password: vlqkdu
+
+test: &TEST
+  adapter: postgresql
+  encoding: utf8
+  database: project_test
+  pool: 5
+  username: postgres
+  password: vlqkdu
+
+production:
+  adapter: postgresql
+  encoding: utf8
+  database: project_production
+  pool: 5
+  username: postgres
+  password: vlqkdu
