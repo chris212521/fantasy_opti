@@ -1,0 +1,7 @@
+<h1><%=params[:id].upcase%> Rankings</h1>
+<% @rankings.each do |rank|%>
+<%= rank.player_name%> <br>
+<%= rank.ppd_std%><br>
+<%end%>
+
+<br>

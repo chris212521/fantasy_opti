@@ -1,0 +1,6 @@
+<h1>OPTIMAL</h1>
+<% @lineup.each do |y|%>
+<%= y.player_name%> <%= y.position%> <%= y.ppd_std%> <%= y.salary%> <%= y.std_proj%><br>
+<%end%>
+
+<%=@salary_remaining%>

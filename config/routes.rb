@@ -3,6 +3,10 @@ FantasyOpti::Application.routes.draw do
   # See how all your routes lay out with "rake routes".
   
   root 'sites#index'
+  
+  get '/rankings/optimal_lineup', to: 'rankings#optimal_lineup'
+  get '/rankings/:id', to: 'rankings#current_rankings'
+  
 
   # You can have the root of your site routed with "root"
   # root 'welcome#index'
