@@ -1,6 +1,7 @@
 class NFL
   @@season_year = 2014
   @@current_week = 3
+  @@flex_pos = ['RB','WR','TE']
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   
@@ -10,6 +11,10 @@ class NFL
   
   def self.current_year
     @@season_year
+  end
+  
+  def self.flex_pos
+    @@flex_pos
   end
   
   def self.update_week_projections(num=nil)
@@ -32,19 +37,17 @@ class NFL
   def self.optimal_ranking(all_rankings)
     salary = 50000
     opti_lineup = []
+    roster_slots = ['QB','RB','RB','WR','WR','TE','DST', NFL.flex_pos]
     
-    qb = all_rankings.position('QB').first
-    opti_lineup << qb
-    salary = salary-qb.salary
-    
-    rb = all_rankings.position('RB').top_std_proj.first
-    opti_lineup << rb
-    salary = salary-rb.salary
-    
-    
-    rb = all_rankings.position('RB').top_std_proj.first
-    opti_lineup << rb
-    salary = salary-rb.salary
+    roster_slots.each do |rs|
+      #selected_player = all_rankings.select{ |r| r.position == rs}.sort!{|a,b| a.ppd_std <=> b.ppd_std}.reverse.first
+      selected_player = all_rankings.select{ |r| rs.include?(r.position)}.sort!{|a,b| a.ppd_std <=> b.ppd_std}.reverse.first
+      opti_lineup << selected_player
+      salary = salary-selected_player.salary
+      
+      #we can no longer use them in another slot, so remove
+      all_rankings.delete_if{ |r| r==selected_player}
+    end
     
     return opti_lineup, salary
   end

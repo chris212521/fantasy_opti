@@ -1,7 +1,13 @@
 <h1><%=params[:id].upcase%> Rankings</h1>
 <% @rankings.each do |rank|%>
-<%= rank.player_name%> <br>
-<%= rank.ppd_std%><br>
+<%= rank.player_name%> <%= rank.std_proj%>
+
+ <% if params[:id].upcase == 'K'%>
+ 
+ <%else%>
+ 	<%= rank.ppd_std%>
+ <%end%>
+<br>
 <%end%>
 
 <br>
