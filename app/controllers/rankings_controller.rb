@@ -1,8 +1,4 @@
 class RankingsController < ApplicationController
-  def qb_rankings
-    @x = Ranking.position(['QB']).week(FFNerd.current_week).top_ppd_std
-  end
-  
   def current_rankings
     FFNerd.api_key = "bm37zp5dfhjh"
     if params[:id].upcase == 'FLEX'
@@ -20,7 +16,10 @@ class RankingsController < ApplicationController
   
   def optimal_lineup  
     start = Time.new
-    @test = NFL.find_max_option(25500,Opti_Ranking.week(NFL.current_week).min_ppd('1').all)
+    arys = Opti_Ranking.week(NFL.current_week).min_ppd('1').all    
+      wr = arys.select{|r| r.position == 'WR'}
+      
+    @test = NFL.find_max_option(17100, [wr,wr])
     stop = Time.new
       puts "Time elapsed in Controller: #{stop - start} seconds"
   end

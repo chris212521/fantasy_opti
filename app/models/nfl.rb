@@ -7,7 +7,7 @@ class NFL
   #FFNerd.schedule.first.gameDate[0,4]
   
   def self.current_week
-   4 #@@current_week
+    @@current_week
   end
   
   def self.current_year
@@ -34,26 +34,35 @@ class NFL
     end      
   end
   
-  def self.find_max_option(max_sal, arys)
-    roster_slots = ['QB','RB','RB','WR','WR','TE','DST', NFL.flex_pos]
-      a = arys.select{|r| r.position == 'QB'}
-      b = arys.select{|r| r.position == 'RB'}
-      c = arys.select{|r| r.position == 'WR'}
-      d = arys.select{|r| r.position == 'TE'}
-      e = arys.select{|r| r.position == 'DST'}
+  def self.find_max_option(max_sal, pos)
+
+    arys = Opti_Ranking.week(NFL.current_week).min_ppd('1').all
+    groomed = []
+    
+      qb = arys.select{|r| r.position == 'QB'}
+      rb = arys.select{|r| r.position == 'RB'}
+      wr = arys.select{|r| r.position == 'WR'}
+      te = arys.select{|r| r.position == 'TE'}
+      dst = arys.select{|r| r.position == 'DST'}
       f = arys.select{|r| NFL.flex_pos.include?(r.position)}
       start = Time.new
-      possibles = f.product(b,b)
       
-      groomed = []
+      
+      
+      possibles = f.product(pos[0],pos[1])
+      
+      
       puts possibles.count
 
      possibles.each do |array_of_players|
         @add_flag = true
-        
+        puts array_of_players.class
+        puts array_of_players[0].class
+        puts array_of_players[0][0].class
         if array_of_players.sum(&:salary) > max_sal
                 @add_flag = false
         else
+          #try count of uniq vs original count
           array_of_players.each do |player|
             if array_of_players.count(player) > 1
                 @add_flag = false
@@ -70,7 +79,6 @@ class NFL
       puts "Time elapsed in NFL: #{stop - start} seconds"
       
       groomed.max_by{ |ar| ar.sum(&:std_proj) }
-      #groomed.max_by{ |arr| arr.reduce(0){ |sum,h| sum + h[:std_proj]} }
     end
 
 end
