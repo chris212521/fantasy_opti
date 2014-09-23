@@ -18,7 +18,10 @@ class RankingsController < ApplicationController
     end
   end
   
-  def optimal_lineup    
-    @test = NFL.find_max_option(50000,Ranking.week(NFL.current_week).all)
+  def optimal_lineup  
+    start = Time.new
+    @test = NFL.find_max_option(25500,Opti_Ranking.week(NFL.current_week).min_ppd('1').all)
+    stop = Time.new
+      puts "Time elapsed in Controller: #{stop - start} seconds"
   end
 end

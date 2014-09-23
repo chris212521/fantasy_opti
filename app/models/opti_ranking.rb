@@ -1,4 +1,4 @@
-class Ranking < ActiveRecord::Base
+class Opti_Ranking < ActiveRecord::Base
   default_scope {where("year = ?", NFL.current_year )}
   scope :position, lambda{|pos| where("position IN (?)", pos )}
   scope :year, lambda{|year| where("year = ?", year )}

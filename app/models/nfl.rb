@@ -7,7 +7,7 @@ class NFL
   #FFNerd.schedule.first.gameDate[0,4]
   
   def self.current_week
-   3 #@@current_week
+   4 #@@current_week
   end
   
   def self.current_year
@@ -34,27 +34,6 @@ class NFL
     end      
   end
   
-  def self.optimal_ranking(all_rankings)
-    salary = 50000
-    exp_pts = 0
-    opti_lineup = []
-    roster_slots = ['QB','RB','RB','WR','WR','TE','DST', NFL.flex_pos]
-    
-    roster_slots.each do |rs|
-      #selected_player = all_rankings.select{ |r| r.position == rs}.sort!{|a,b| a.ppd_std <=> b.ppd_std}.reverse.first
-      selected_player = all_rankings.select{ |r| rs.include?(r.position)}.sort!{|a,b| a.ppd_std <=> b.ppd_std}.reverse.first
-      opti_lineup << selected_player
-      salary = salary-selected_player.salary
-      exp_pts = exp_pts + selected_player.std_proj
-      
-      
-      #we can no longer use them in another slot, so remove
-      all_rankings.delete_if{ |r| r==selected_player}
-    end
-    
-    return opti_lineup, salary, exp_pts
-  end
-  
   def self.find_max_option(max_sal, arys)
     roster_slots = ['QB','RB','RB','WR','WR','TE','DST', NFL.flex_pos]
       a = arys.select{|r| r.position == 'QB'}
@@ -62,27 +41,36 @@ class NFL
       c = arys.select{|r| r.position == 'WR'}
       d = arys.select{|r| r.position == 'TE'}
       e = arys.select{|r| r.position == 'DST'}
+      f = arys.select{|r| NFL.flex_pos.include?(r.position)}
+      start = Time.new
+      possibles = f.product(b,b)
       
-      possibles = c.product(a,b,b,c,c)
       groomed = []
-      
-      possibles.each do |array_of_players|
+      puts possibles.count
+
+     possibles.each do |array_of_players|
+        @add_flag = true
         
-        add_flag = true
+        if array_of_players.sum(&:salary) > max_sal
+                @add_flag = false
+        else
           array_of_players.each do |player|
-              if array_of_players.count(player) > 1
-                add_flag = false
+            if array_of_players.count(player) > 1
+                @add_flag = false
               end
           end
-          
-        if add_flag == true
+        end
+        
+        if @add_flag == true
           groomed << array_of_players
         end
-      end
+     end
+     
+     stop = Time.new
+      puts "Time elapsed in NFL: #{stop - start} seconds"
       
-      groomed
-      .select{ |arr| arr.reduce(0) { |sum,h| sum + h[:salary] } < max_sal }
-      .max_by{ |arr| arr.reduce(0){ |sum,h| sum + h[:std_proj]} }
+      groomed.max_by{ |ar| ar.sum(&:std_proj) }
+      #groomed.max_by{ |arr| arr.reduce(0){ |sum,h| sum + h[:std_proj]} }
     end
 
 end
