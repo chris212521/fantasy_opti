@@ -4,7 +4,7 @@ class RankingsController < ApplicationController
   end
   
   def current_rankings
-    
+    FFNerd.api_key = "bm37zp5dfhjh"
     if params[:id].upcase == 'FLEX'
       flex_pos = NFL.flex_pos
     end
@@ -18,11 +18,7 @@ class RankingsController < ApplicationController
     end
   end
   
-  def optimal_lineup
-    @players = Ranking.week(NFL.current_week)
-    optimized = NFL.optimal_ranking(Ranking.week(NFL.current_week).all)
-    
-    @lineup = optimized[0] 
-    @salary_remaining = optimized[1]
+  def optimal_lineup    
+    @test = NFL.find_max_option(50000,Ranking.week(NFL.current_week).all)
   end
 end
