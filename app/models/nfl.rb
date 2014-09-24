@@ -28,6 +28,8 @@ class NFL
     
       positions.each do |pos|
           position_proj = FFNerd.weekly_rankings(pos, num)
+          
+          puts pos
       
           position_proj.each do |p|
             Projection.create(player_name: p.name, player_id: p.playerId, position: p.position, team: p.team, std_proj: p.standard,

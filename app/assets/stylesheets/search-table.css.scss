@@ -1,0 +1,26 @@
+@import "variables";
+
+table{
+  
+  th{
+    font-family: 'Lato', Helvetica, Arial, sans-serif !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    font-style: italic !important;
+    background-color: $green !important;
+  }
+  td{
+    font-family: 'Lato', Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    padding-right: 8px;
+    text-align: right;
+  }
+} 
+
+.table-striped > tbody > tr:nth-child(2n+1) > td, .table-striped > tbody > tr:nth-child(2n+1) > th {
+   background-color: rgba($lightGray,.7);
+}
+
+.left-text{
+  text-align: left !important;
+}

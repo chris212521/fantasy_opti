@@ -3,10 +3,13 @@
 <%= render partial: "shared/search_form" %>	
 
 <br>
-<% if defined?(@lineup) %>
-	<% @lineup.each do |y| %>
-		<%= y.player_name%> <%= y.salary%> <%= y.ppd_std%><br>
+
+	<% if !@lineup.nil? %>
+		<%= render partial: "shared/opti_table", locals: {table_data: @lineup} %>
+	<%else%>
+		<h3>Select criteria for your lineup</h3>
 	<%end%>
-<%end%>
+
+
 
 <%= @timer %>

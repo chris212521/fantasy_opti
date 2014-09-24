@@ -4,16 +4,16 @@
 	  	  <div class="col-md-4">
 	  	  <div class="row"><h4><%= label_tag(:company_name, "Nutrition Filters:") %></h4></div>
 	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary", class: "search-form-text-field" %></div>
-			<%= select_tag "positions1", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "positions2", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "positions3", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "positions4", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "positions5", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position1", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position2", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position3", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position4", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position5", options_for_select(NFL.positions,NFL.positions) %>
 			
 	  </div>
 
 	<div class="col-md-12"> 
-	  <%= submit_tag("Compare", :name => '', :class=>"btn btn-search") %>
+	  <%= submit_tag("Search", :name => '', :class=>"btn btn-search") %>
 	  </div>
    </div>
    </form>
