@@ -70,15 +70,10 @@ class NFL
      possibles.each do |array_of_players|
         @add_flag = true
         
-        if array_of_players.sum(&:salary) > max_sal
+        if array_of_players.sum(&:salary) > max_sal 
+            @add_flag = false
+        elsif array_of_players.uniq.count < array_of_players.count
                 @add_flag = false
-        else
-          #try count of uniq vs original count
-          array_of_players.each do |player|
-            if array_of_players.count(player) > 1
-                @add_flag = false
-              end
-          end
         end
         
         if @add_flag == true

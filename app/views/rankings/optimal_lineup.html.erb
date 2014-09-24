@@ -3,8 +3,10 @@
 <%= render partial: "shared/search_form" %>	
 
 <br>
-<% @test.each do |y| %>
-<%= y.player_name%> <%= y.salary%> <%= y.ppd_std%><br>
+<% if defined?(@lineup) %>
+	<% @lineup.each do |y| %>
+		<%= y.player_name%> <%= y.salary%> <%= y.ppd_std%><br>
+	<%end%>
 <%end%>
 
 <%= @timer %>

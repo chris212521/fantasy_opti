@@ -1,0 +1,12 @@
+CREATE OR REPLACE FUNCTION update_ppd(integer, integer)
+  RETURNS void AS
+$BODY$
+    UPDATE salaries a
+	SET ppd_std = ROUND((SELECT std_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2),
+	    ppd_low = ROUND((SELECT std_low_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2),
+	    ppd_high = ROUND((SELECT std_high_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2)
+	WHERE week = $1
+		AND year = $2;
+$BODY$
+  LANGUAGE sql VOLATILE
+  COST 100;
