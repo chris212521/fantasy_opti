@@ -18,12 +18,7 @@ class RankingsController < ApplicationController
     start = Time.new
     
     pos = []
-    
-    puts params[:positions1]
-    puts params[:positions1][:list]
-    puts params[:positions2]
-    
-    pos << params[:positions1][:list]
+    pos << params[:positions1]
     pos << params[:positions2]
     
     puts pos
