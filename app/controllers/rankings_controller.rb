@@ -16,10 +16,19 @@ class RankingsController < ApplicationController
   
   def optimal_lineup  
     start = Time.new
-    arys = Opti_Ranking.week(NFL.current_week).min_ppd('1').all    
-      wr = arys.select{|r| r.position == 'WR'}
-      
-    @test = NFL.find_max_option(17100, [wr,wr])
+    
+    pos = []
+    
+    puts params[:positions1]
+    puts params[:positions1][:list]
+    puts params[:positions2]
+    
+    pos << params[:positions1][:list]
+    pos << params[:positions2]
+    
+    puts pos
+
+    @test = NFL.find_max_option(params[:salary].to_i, pos)
     stop = Time.new
       puts "Time elapsed in Controller: #{stop - start} seconds"
   end

@@ -1,0 +1,1883 @@
+--
+-- PostgreSQL database dump
+--
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+--
+-- Name: calculate_ppd(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION calculate_ppd() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	UPDATE salaries a
+	SET ppd_std = ROUND((SELECT std_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2),
+	    ppd_low = ROUND((SELECT std_low_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2),
+	    ppd_high = ROUND((SELECT std_high_proj FROM projections b WHERE a.position=b.position AND TRIM(lower(a.player_name))=TRIM(lower(b.player_name)) AND a.week=b.week AND a.year=b.year)/(salary/1000),2)
+	WHERE lower(player_name)=lower(NEW.player_name);
+  RETURN NEW;
+END; 
+$$;
+
+
+ALTER FUNCTION public.calculate_ppd() OWNER TO postgres;
+
+--
+-- Name: clean_defense_text(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION clean_defense_text() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	UPDATE projections
+	SET position = 'DST',
+		player_name = regexp_replace(player_name, '^.* ', '')
+	WHERE NEW.position='DEF'
+	AND id = NEW.id;
+  RETURN NEW;
+END; 
+$$;
+
+
+ALTER FUNCTION public.clean_defense_text() OWNER TO postgres;
+
+--
+-- Name: remove_old_projection(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION remove_old_projection() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	DELETE FROM projections
+	WHERE player_id=NEW.player_id
+	AND week=NEW.week
+	AND year=NEW.year;
+  RETURN NEW;
+END; 
+$$;
+
+
+ALTER FUNCTION public.remove_old_projection() OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: projections; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE projections (
+    id integer NOT NULL,
+    player_name character varying(255),
+    player_id integer,
+    "position" character varying(255),
+    team character varying(255),
+    std_proj numeric,
+    std_low_proj numeric,
+    std_high_proj numeric,
+    ppr_proj numeric,
+    ppr_low_proj numeric,
+    ppr_high_proj numeric,
+    injury character varying(255),
+    practice_status character varying(255),
+    game_status character varying(255),
+    last_update character varying(255),
+    week integer,
+    year integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+ALTER TABLE public.projections OWNER TO postgres;
+
+--
+-- Name: salaries; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE salaries (
+    "position" character varying(10),
+    player_name character varying(200),
+    salary integer,
+    league character varying(10),
+    week integer,
+    year integer,
+    website character varying(10),
+    ppd_std numeric,
+    ppd_low numeric,
+    ppd_high numeric
+);
+
+
+ALTER TABLE public.salaries OWNER TO postgres;
+
+--
+-- Name: rankings; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW rankings AS
+ SELECT btrim((p.player_name)::text) AS player_name,
+    p."position",
+    p.team,
+    p.std_proj,
+    s.salary,
+    s.league,
+    s.week,
+    s.year,
+    s.website,
+    s.ppd_std,
+    s.ppd_low,
+    s.ppd_high
+   FROM projections p,
+    salaries s
+  WHERE ((((btrim(lower((p.player_name)::text)) = btrim(lower((s.player_name)::text))) AND ((p."position")::text = (s."position")::text)) AND (p.week = s.week)) AND (p.year = s.year));
+
+
+ALTER TABLE public.rankings OWNER TO postgres;
+
+--
+-- Name: elite_rankings; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW elite_rankings AS
+ SELECT a.player_name,
+    a."position",
+    a.team,
+    a.std_proj,
+    a.salary,
+    a.league,
+    a.week,
+    a.year,
+    a.website,
+    a.ppd_std,
+    a.ppd_low,
+    a.ppd_high
+   FROM rankings a
+  WHERE (NOT (EXISTS ( SELECT 1
+           FROM rankings b
+          WHERE (((((a.player_name <> b.player_name) AND ((a."position")::text = (b."position")::text)) AND (b.std_proj > a.std_proj)) AND (b.ppd_std > a.ppd_std)) AND (a.week = b.week)))));
+
+
+ALTER TABLE public.elite_rankings OWNER TO postgres;
+
+--
+-- Name: opti_rankings; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW opti_rankings AS
+ SELECT a.player_name,
+    a."position",
+    a.team,
+    a.std_proj,
+    a.salary,
+    a.league,
+    a.week,
+    a.year,
+    a.website,
+    a.ppd_std,
+    a.ppd_low,
+    a.ppd_high
+   FROM rankings a
+  WHERE ((NOT (EXISTS ( SELECT 1
+           FROM rankings b
+          WHERE ((((((a.player_name <> b.player_name) AND ((a."position")::text = (b."position")::text)) AND (b.std_proj > a.std_proj)) AND (b.ppd_std > a.ppd_std)) AND (b.salary < a.salary)) AND (a.week = b.week))))) AND (a.ppd_std > (1)::numeric));
+
+
+ALTER TABLE public.opti_rankings OWNER TO postgres;
+
+--
+-- Name: opti_rankings_bk; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW opti_rankings_bk AS
+ SELECT btrim((p.player_name)::text) AS player_name,
+    p."position",
+    p.team,
+    p.std_proj,
+    s.salary,
+    s.league,
+    s.week,
+    s.year,
+    s.website,
+    s.ppd_std,
+    s.ppd_low,
+    s.ppd_high
+   FROM projections p,
+    salaries s
+  WHERE (((((btrim(lower((p.player_name)::text)) = btrim(lower((s.player_name)::text))) AND ((p."position")::text = (s."position")::text)) AND (p.week = s.week)) AND (p.year = s.year)) AND (s.ppd_std > ( SELECT avg(salaries.ppd_std) AS avg
+           FROM salaries
+          WHERE (((salaries.week = s.week) AND ((salaries."position")::text = (s."position")::text)) AND (salaries.ppd_std <> (0)::numeric)))));
+
+
+ALTER TABLE public.opti_rankings_bk OWNER TO postgres;
+
+--
+-- Name: projections_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE projections_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.projections_id_seq OWNER TO postgres;
+
+--
+-- Name: projections_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE projections_id_seq OWNED BY projections.id;
+
+
+--
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE schema_migrations (
+    version character varying(255) NOT NULL
+);
+
+
+ALTER TABLE public.schema_migrations OWNER TO postgres;
+
+--
+-- Name: id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY projections ALTER COLUMN id SET DEFAULT nextval('projections_id_seq'::regclass);
+
+
+--
+-- Data for Name: projections; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY projections (id, player_name, player_id, "position", team, std_proj, std_low_proj, std_high_proj, ppr_proj, ppr_low_proj, ppr_high_proj, injury, practice_status, game_status, last_update, week, year, created_at, updated_at) FROM stdin;
+5121	Drew Brees	14	QB	NO	23.1	21.3	33.0	23.1	21.3	33.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4626	2014-09-22 15:29:57.4626
+5122	Matthew Stafford	793	QB	DET	21.1	16.2	28.0	21.1	16.2	28.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4716	2014-09-22 15:29:57.4716
+5123	Andrew Luck	1932	QB	IND	20.8	16.96	28.0	20.8	16.96	28.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4756	2014-09-22 15:29:57.4756
+5124	Aaron Rodgers	87	QB	GB	20.2	15.78	30.0	20.2	15.78	30.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4806	2014-09-22 15:29:57.4806
+5125	Matt Ryan	93	QB	ATL	19.7	13.56	22.0	19.7	13.56	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4856	2014-09-22 15:29:57.4856
+5126	Peyton Manning	66	QB	DEN	19.1	14.7	24.0	19.1	14.7	24.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4906	2014-09-22 15:29:57.4906
+5127	Tom Brady	13	QB	NE	19.0	17.0	27.0	19.0	17.0	27.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4946	2014-09-22 15:29:57.4946
+5128	Nick Foles	1801	QB	PHI	18.9	14.76	24.0	18.9	14.76	24.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.4986	2014-09-22 15:29:57.4986
+5129	Cam Newton	1398	QB	CAR	18.8	15.22	23.0	18.8	15.22	23.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5036	2014-09-22 15:29:57.5036
+5130	Jay Cutler	28	QB	CHI	18.2	14.1	26.0	18.2	14.1	26.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5076	2014-09-22 15:29:57.5076
+5131	Russell Wilson	1847	QB	SEA	18.0	12.24	21.4	18.0	12.24	21.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5106	2014-09-22 15:29:57.5106
+5132	Philip Rivers	86	QB	SD	17.0	12.24	25.0	17.0	12.24	25.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5136	2014-09-22 15:29:57.5136
+5133	Colin Kaepernick	1394	QB	SF	16.7	11.0	19.0	16.7	11.0	19.0	Back		Probable	2014-09-21	3	2014	2014-09-22 15:29:57.5166	2014-09-22 15:29:57.5166
+5134	Ryan Tannehill	1758	QB	MIA	16.7	11.0	18.6	16.7	11.0	18.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5206	2014-09-22 15:29:57.5206
+5135	Tony Romo	89	QB	DAL	16.2	11.0	19.0	16.2	11.0	19.0	Back		Probable	2014-09-21	3	2014	2014-09-22 15:29:57.5236	2014-09-22 15:29:57.5236
+5136	Andy Dalton	1391	QB	CIN	15.8	11.0	19.0	15.8	11.0	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5266	2014-09-22 15:29:57.5266
+5656	Drew Brees	14	QB	NO	21.9	21.0	27.0	21.9	21.0	27.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.085	2014-09-23 17:12:44.085
+5657	Aaron Rodgers	87	QB	GB	20.4	15.1	28.0	20.4	15.1	28.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.133	2014-09-23 17:12:44.133
+5658	Jay Cutler	28	QB	CHI	20.1	15.0	24.0	20.1	15.0	24.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.138	2014-09-23 17:12:44.138
+5659	Philip Rivers	86	QB	SD	19.4	15.7	26.0	19.4	15.7	26.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.142	2014-09-23 17:12:44.142
+5660	Matt Ryan	93	QB	ATL	19.3	17.8	25.0	19.3	17.8	25.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.146	2014-09-23 17:12:44.146
+5661	Andrew Luck	1932	QB	IND	19.0	16.0	26.0	19.0	16.0	26.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.151	2014-09-23 17:12:44.151
+5662	Matthew Stafford	793	QB	DET	18.6	15.7	23.0	18.6	15.7	23.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.155	2014-09-23 17:12:44.155
+5663	Nick Foles	1801	QB	PHI	18.0	14.4	21.0	18.0	14.4	21.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.159	2014-09-23 17:12:44.159
+5664	Colin Kaepernick	1394	QB	SF	17.9	13.04	21.0	17.9	13.04	21.0	Back		Probable	2014-09-23	4	2014	2014-09-23 17:12:44.163	2014-09-23 17:12:44.163
+5665	Tom Brady	13	QB	NE	17.6	12.5	20.0	17.6	12.5	20.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.168	2014-09-23 17:12:44.168
+5666	Tony Romo	89	QB	DAL	17.4	15.0	21.0	17.4	15.0	21.0	Back		Probable	2014-09-23	4	2014	2014-09-23 17:12:44.172	2014-09-23 17:12:44.172
+5667	Ben Roethlisberger	88	QB	PIT	17.2	15.7	22.0	17.2	15.7	22.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.176	2014-09-23 17:12:44.176
+5668	Kirk Cousins	1805	QB	WAS	16.2	14.11	21.0	16.2	14.11	21.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.18	2014-09-23 17:12:44.18
+5669	Cam Newton	1398	QB	CAR	16.1	14.0	18.0	16.1	14.0	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.184	2014-09-23 17:12:44.184
+5670	Jake Locker	1395	QB	TEN	15.9	12.02	16.8	15.9	12.02	16.8	Wrist		Questionable	2014-09-23	4	2014	2014-09-23 17:12:44.188	2014-09-23 17:12:44.188
+5671	Ryan Tannehill	1758	QB	MIA	15.5	11.66	16.6	15.5	11.66	16.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.192	2014-09-23 17:12:44.192
+5672	Teddy Bridgewater	2601	QB	MIN	15.5	11.88	16.1	15.5	11.88	16.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.196	2014-09-23 17:12:44.196
+5673	Alex Smith	97	QB	KC	15.3	11.0	16.1	15.3	11.0	16.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.2	2014-09-23 17:12:44.2
+5674	Eli Manning	65	QB	NYG	15.2	11.4	20.0	15.2	11.4	20.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.204	2014-09-23 17:12:44.204
+5675	Geno Smith	2146	QB	NYJ	15.0	6.0	16.1	15.0	6.0	16.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.208	2014-09-23 17:12:44.208
+5676	Joe Flacco	35	QB	BAL	14.1	10.0	17.0	14.1	10.0	17.0	Illness		Probable	2014-09-23	4	2014	2014-09-23 17:12:44.212	2014-09-23 17:12:44.212
+5677	Ryan Fitzpatrick	34	QB	HOU	14.0	10.0	16.0	14.0	10.0	16.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.216	2014-09-23 17:12:44.216
+5678	Mike Glennon	2392	QB	TB	13.4	9.52	15.0	13.4	9.52	15.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.22	2014-09-23 17:12:44.22
+5679	Derek Carr	2503	QB	OAK	13.3	9.72	14.0	13.3	9.72	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.224	2014-09-23 17:12:44.224
+5680	Blake Bortles	2627	QB	JAC	13.2	10.0	16.0	13.2	10.0	16.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.228	2014-09-23 17:12:44.228
+5681	EJ Manuel	2114	QB	BUF	12.9	10.0	13.69	12.9	10.0	13.69	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.232	2014-09-23 17:12:44.232
+5682	Chad Henne	52	QB	JAC	5.6	0.0	13.0	5.6	0.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.236	2014-09-23 17:12:44.236
+5683	Josh McCown	69	QB	TB	3.7	0.0	16.1	3.7	0.0	16.1	Thumb		Left	2014-09-23	4	2014	2014-09-23 17:12:44.24	2014-09-23 17:12:44.24
+5684	Robert Griffin III	1806	QB	WAS	0.5	0.0	0.97	0.5	0.0	0.97	Ankle		Out	2014-09-23	4	2014	2014-09-23 17:12:44.244	2014-09-23 17:12:44.244
+5685	Matt Flynn	36	QB	GB	0.5	0.0	0.91	0.5	0.0	0.91	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.249	2014-09-23 17:12:44.249
+5686	Jimmy Clausen	1112	QB	CHI	0.5	0.0	0.95	0.5	0.0	0.95	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.252	2014-09-23 17:12:44.252
+5687	Bruce Gradkowski	41	QB	PIT	0.4	0.0	0.97	0.4	0.0	0.97	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.256	2014-09-23 17:12:44.256
+5688	Charlie Whitehurst	110	QB	TEN	0.4	0.0	0.97	0.4	0.0	0.97	Right Finger		Probable	2014-09-23	4	2014	2014-09-23 17:12:44.26	2014-09-23 17:12:44.26
+5689	Brandon Weeden	1877	QB	DAL	0.4	0.0	0.88	0.4	0.0	0.88	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.264	2014-09-23 17:12:44.264
+5690	Derek Anderson	2	QB	CAR	0.3	0.0	0.92	0.3	0.0	0.92	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.268	2014-09-23 17:12:44.268
+5691	Luke McCown	70	QB	NO	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.272	2014-09-23 17:12:44.272
+5692	Matt Barkley	2168	QB	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.276	2014-09-23 17:12:44.276
+5693	Kellen Clemens	23	QB	SD	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.28	2014-09-23 17:12:44.28
+5694	Matt Hasselbeck	51	QB	IND	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.284	2014-09-23 17:12:44.284
+5695	Jason Campbell	20	QB	CIN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.288	2014-09-23 17:12:44.288
+5696	Matt Cassel	22	QB	MIN	0.0	0.0	0.0	0.0	0.0	0.0	Toe		Left	2014-09-23	4	2014	2014-09-23 17:12:44.292	2014-09-23 17:12:44.292
+5697	Matt Schaub	94	QB	OAK	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.296	2014-09-23 17:12:44.296
+5698	David Garrard	40	QB	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.3	2014-09-23 17:12:44.3
+5699	Kyle Orton	76	QB	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.304	2014-09-23 17:12:44.304
+5700	Michael Vick	105	QB	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.308	2014-09-23 17:12:44.308
+5701	Dan Orlovsky	75	QB	DET	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:44.312	2014-09-23 17:12:44.312
+5702	Matt Forte	175	RB	CHI	17.6	17.0	19.9	22.0	21.0	25.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.113	2014-09-23 17:12:45.113
+5703	DeMarco Murray	1421	RB	DAL	16.2	8.8	19.0	19.3	10.8	23.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.118	2014-09-23 17:12:45.118
+5704	Le'Veon Bell	2289	RB	PIT	14.5	8.7	18.0	18.4	10.7	22.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.122	2014-09-23 17:12:45.122
+5705	LeSean McCoy	810	RB	PHI	14.8	13.0	16.6	18.0	17.0	20.27	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.126	2014-09-23 17:12:45.126
+5706	Donald Brown	798	RB	SD	14.6	7.8	16.1	17.6	8.8	19.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.13	2014-09-23 17:12:45.13
+5707	Jamaal Charles	145	RB	KC	13.0	0.0	15.9	16.5	0.0	19.9	Ankle		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.134	2014-09-23 17:12:45.134
+5708	Lamar Miller	1761	RB	MIA	12.9	10.06	17.0	15.9	13.06	21.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.138	2014-09-23 17:12:45.138
+5709	Rashad Jennings	805	RB	NYG	12.5	11.1	16.0	15.4	12.1	19.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.142	2014-09-23 17:12:45.142
+5710	Arian Foster	917	RB	HOU	12.5	0.0	17.0	15.0	0.0	20.0	Hamstring		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.183	2014-09-23 17:12:45.183
+5711	Eddie Lacy	2313	RB	GB	12.9	12.2	17.4	14.9	14.2	20.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.187	2014-09-23 17:12:45.187
+5712	Matt Asiata	1496	RB	MIN	11.6	2.1	15.0	14.7	3.1	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.191	2014-09-23 17:12:45.191
+5713	Alfred Morris	1809	RB	WAS	13.1	10.12	15.3	14.0	12.12	16.3	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.195	2014-09-23 17:12:45.195
+5714	Reggie Bush	139	RB	DET	9.3	8.0	13.1	14.0	11.9	16.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.199	2014-09-23 17:12:45.199
+5715	Fred Jackson	204	RB	BUF	9.5	8.2	14.0	13.2	10.2	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.203	2014-09-23 17:12:45.203
+5716	Shane Vereen	1430	RB	NE	9.2	6.0	13.4	13.2	9.0	18.4	Shoulder		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.207	2014-09-23 17:12:45.207
+5717	Ahmad Bradshaw	132	RB	IND	9.9	7.35	14.0	12.8	9.35	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.211	2014-09-23 17:12:45.211
+5718	Pierre Thomas	292	RB	NO	8.5	6.0	14.3	12.4	10.0	18.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.215	2014-09-23 17:12:45.215
+5719	Doug Martin	1981	RB	TB	10.0	7.1	13.0	12.1	8.1	16.0	Knee		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.219	2014-09-23 17:12:45.219
+5720	Darren Sproles	285	RB	PHI	7.9	5.9	10.3	11.9	8.9	13.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.223	2014-09-23 17:12:45.223
+5721	C.J. Spiller	1136	RB	BUF	9.7	8.53	15.0	11.8	10.53	17.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.227	2014-09-23 17:12:45.227
+5722	DeAngelo Williams	310	RB	CAR	8.9	4.2	10.0	11.6	5.2	13.0	Thigh		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.231	2014-09-23 17:12:45.231
+5723	Khiry Robinson	2386	RB	NO	10.4	7.8	12.0	11.4	8.8	13.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.235	2014-09-23 17:12:45.235
+5724	Trent Richardson	1879	RB	IND	9.2	6.0	12.0	11.4	9.0	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.239	2014-09-23 17:12:45.239
+5725	Joique Bell	1220	RB	DET	8.4	4.0	13.2	11.4	7.0	17.2	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.243	2014-09-23 17:12:45.243
+5726	Frank Gore	180	RB	SF	10.2	4.0	12.0	11.4	5.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.247	2014-09-23 17:12:45.247
+5727	Knile Davis	2192	RB	KC	8.8	2.0	15.0	11.2	3.0	19.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.251	2014-09-23 17:12:45.251
+5728	Stevan Ridley	1423	RB	NE	9.9	7.0	12.0	11.0	8.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.255	2014-09-23 17:12:45.255
+5729	Chris Johnson	208	RB	NYJ	8.2	3.6	9.4	11.0	6.6	12.1	Ankle		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.259	2014-09-23 17:12:45.259
+5730	Toby Gerhart	1127	RB	JAC	8.7	4.0	13.6	10.8	7.0	16.6	Foot		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.263	2014-09-23 17:12:45.263
+5731	Justin Forsett	174	RB	BAL	7.2	4.0	12.0	10.5	7.06	17.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.268	2014-09-23 17:12:45.268
+5732	Steven Jackson	205	RB	ATL	9.1	8.5	13.5	10.4	9.5	15.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.272	2014-09-23 17:12:45.272
+5733	Maurice Jones-Drew	217	RB	OAK	7.4	0.0	8.6	9.2	0.0	10.6	Hand		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.276	2014-09-23 17:12:45.276
+5734	Chris Ivory	1227	RB	NYJ	7.1	6.19	11.0	8.4	7.5	11.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.28	2014-09-23 17:12:45.28
+5735	Bobby Rainey	2034	RB	TB	6.0	3.0	6.4	7.9	4.0	8.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.284	2014-09-23 17:12:45.284
+5736	Darren McFadden	235	RB	OAK	6.4	5.35	11.0	7.7	6.6	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.288	2014-09-23 17:12:45.288
+5737	Jonathan Stewart	287	RB	CAR	6.2	0.0	11.5	7.5	0.0	13.5	Knee		Left	2014-09-23	4	2014	2014-09-23 17:12:45.292	2014-09-23 17:12:45.292
+5738	Roy Helu	1413	RB	WAS	5.1	3.0	6.0	7.2	5.0	8.0	Quadriceps		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.296	2014-09-23 17:12:45.296
+5739	Jacquizz Rodgers	1424	RB	ATL	5.0	1.0	9.1	7.0	2.0	12.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.3	2014-09-23 17:12:45.3
+5740	Bernard Pierce	1866	RB	BAL	5.9	0.0	12.0	7.0	0.0	14.0	Thigh		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.304	2014-09-23 17:12:45.304
+5741	Shonn Greene	803	RB	TEN	6.8	5.0	11.0	7.0	6.0	11.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.308	2014-09-23 17:12:45.308
+5742	LeGarrette Blount	1221	RB	PIT	6.2	3.3	9.0	6.8	3.3	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.312	2014-09-23 17:12:45.312
+5743	Lorenzo Taliaferro	2549	RB	BAL	5.8	0.3	11.0	6.7	0.3	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.316	2014-09-23 17:12:45.316
+5744	Alfred Blue	2609	RB	HOU	5.1	2.8	9.0	6.4	3.8	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.32	2014-09-23 17:12:45.32
+5745	Carlos Hyde	2530	RB	SF	5.5	4.23	9.0	6.1	5.4	10.0	Calf		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.324	2014-09-23 17:12:45.324
+5746	Bishop Sankey	2642	RB	TEN	4.7	3.4	7.0	5.8	4.4	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.328	2014-09-23 17:12:45.328
+5747	Dexter McCluster	1161	RB	TEN	4.1	1.5	5.4	5.2	2.57	6.4	Foot		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.332	2014-09-23 17:12:45.332
+5748	James Starks	1137	RB	GB	3.8	2.4	5.5	5.0	3.4	6.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.336	2014-09-23 17:12:45.336
+5749	Andre Williams	2464	RB	NYG	3.6	1.0	5.1	4.6	1.0	6.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.34	2014-09-23 17:12:45.34
+5750	Joe McKnight	1133	RB	KC	1.8	0.0	3.0	4.4	0.0	8.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.344	2014-09-23 17:12:45.344
+5751	Ka'Deem Carey	2580	RB	CHI	2.7	0.0	4.2	4.0	0.0	6.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.348	2014-09-23 17:12:45.348
+5752	Marcel Reece	267	RB	OAK	2.1	1.0	3.4	4.0	2.53	5.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.352	2014-09-23 17:12:45.352
+5753	Darrin Reaves	2662	RB	CAR	1.8	1.0	2.59	3.3	2.0	4.59	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.356	2014-09-23 17:12:45.356
+5754	Lance Dunbar	1785	RB	DAL	2.3	0.0	3.9	3.3	1.0	4.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.36	2014-09-23 17:12:45.36
+5755	Jordan Todman	1429	RB	JAC	2.0	0.0	3.4	3.2	1.0	5.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.364	2014-09-23 17:12:45.364
+5756	Jerick McKinnon	2602	RB	MIN	2.0	1.2	3.3	3.0	2.2	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.368	2014-09-23 17:12:45.368
+5757	Dri Archer	2574	RB	PIT	2.0	0.0	5.5	3.0	0.0	7.5	Ankle		Doubtful	2014-09-23	4	2014	2014-09-23 17:12:45.372	2014-09-23 17:12:45.372
+5758	Devonta Freeman	2651	RB	ATL	1.6	1.0	2.0	2.9	2.1	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.376	2014-09-23 17:12:45.376
+5759	Brandon Bolden	1769	RB	NE	1.8	1.0	2.9	2.8	1.0	4.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.38	2014-09-23 17:12:45.38
+5760	Jonathan Grimes	2055	RB	HOU	1.7	0.5	3.0	2.5	0.5	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.384	2014-09-23 17:12:45.384
+5137	Josh McCown	69	QB	TB	15.7	12.0	16.58	15.7	12.0	16.58	Thumb		Left	2014-09-21	3	2014	2014-09-22 15:29:57.5296	2014-09-22 15:29:57.5296
+5138	Alex Smith	97	QB	KC	15.7	11.96	18.0	15.7	11.96	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5326	2014-09-22 15:29:57.5326
+5139	Kirk Cousins	1805	QB	WAS	15.4	11.1	18.0	15.4	11.1	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5376	2014-09-22 15:29:57.5376
+5140	EJ Manuel	2114	QB	BUF	15.4	12.76	16.7	15.4	12.76	16.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5406	2014-09-22 15:29:57.5406
+5141	Geno Smith	2146	QB	NYJ	15.1	10.2	16.4	15.1	10.2	16.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5436	2014-09-22 15:29:57.5436
+5142	Joe Flacco	35	QB	BAL	14.4	10.42	22.0	14.4	10.42	22.0	Illness		Probable	2014-09-21	3	2014	2014-09-22 15:29:57.5476	2014-09-22 15:29:57.5476
+5143	Ben Roethlisberger	88	QB	PIT	14.4	11.0	17.0	14.4	11.0	17.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5506	2014-09-22 15:29:57.5506
+5144	Drew Stanton	102	QB	ARI	14.3	9.0	16.0	14.3	9.0	16.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5536	2014-09-22 15:29:57.5536
+5145	Jake Locker	1395	QB	TEN	14.0	8.0	15.0	14.0	8.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5566	2014-09-22 15:29:57.5566
+5146	Matt Cassel	22	QB	MIN	13.8	10.0	15.3	13.8	10.0	15.3	Toe		Left	2014-09-21	3	2014	2014-09-22 15:29:57.5606	2014-09-22 15:29:57.5606
+5147	Chad Henne	52	QB	JAC	13.6	8.0	15.9	13.6	8.0	15.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5636	2014-09-22 15:29:57.5636
+5148	Derek Carr	2503	QB	OAK	13.4	8.0	15.0	13.4	8.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5666	2014-09-22 15:29:57.5666
+5149	Ryan Fitzpatrick	34	QB	HOU	13.2	10.0	15.8	13.2	10.0	15.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5696	2014-09-22 15:29:57.5696
+5150	Eli Manning	65	QB	NYG	13.2	7.0	16.0	13.2	7.0	16.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5726	2014-09-22 15:29:57.5726
+5151	Brian Hoyer	901	QB	CLE	13.0	9.0	15.0	13.0	9.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5756	2014-09-22 15:29:57.5756
+5152	Austin Davis	1853	QB	STL	12.2	9.9	14.0	12.2	9.9	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5786	2014-09-22 15:29:57.5786
+5153	Mike Glennon	2392	QB	TB	2.0	0.0	3.0	2.0	0.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5816	2014-09-22 15:29:57.5816
+5154	Shaun Hill	54	QB	STL	1.4	0.0	2.4	1.4	0.0	2.4	Thigh		Questionable	2014-09-21	3	2014	2014-09-22 15:29:57.5846	2014-09-22 15:29:57.5846
+5155	Matt Flynn	36	QB	GB	1.3	0.0	2.0	1.3	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5876	2014-09-22 15:29:57.5876
+5156	Johnny Manziel	2562	QB	CLE	1.1	0.0	2.32	1.1	0.0	2.32	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5906	2014-09-22 15:29:57.5906
+5157	Blake Bortles	2627	QB	JAC	1.0	0.0	2.13	1.0	0.0	2.13	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5936	2014-09-22 15:29:57.5936
+5158	Matt McGloin	2199	QB	OAK	0.7	0.0	1.0	0.7	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5966	2014-09-22 15:29:57.5966
+5159	Brandon Weeden	1877	QB	DAL	0.7	0.0	1.0	0.7	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.5996	2014-09-22 15:29:57.5996
+5160	Colt McCoy	1116	QB	WAS	0.7	0.0	1.0	0.7	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6036	2014-09-22 15:29:57.6036
+5161	Kellen Clemens	23	QB	SD	0.5	0.0	1.0	0.5	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6066	2014-09-22 15:29:57.6066
+5162	Tarvaris Jackson	56	QB	SEA	0.5	0.0	1.0	0.5	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6096	2014-09-22 15:29:57.6096
+5163	Jason Campbell	20	QB	CIN	0.5	0.0	1.0	0.5	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6126	2014-09-22 15:29:57.6126
+5164	Matt Barkley	2168	QB	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6156	2014-09-22 15:29:57.6156
+5165	David Garrard	40	QB	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6186	2014-09-22 15:29:57.6186
+5166	Bruce Gradkowski	41	QB	PIT	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6216	2014-09-22 15:29:57.6216
+5167	Carson Palmer	79	QB	ARI	0.0	0.0	4.0	0.0	0.0	4.0	Right Shoulder		Questionable	2014-09-21	3	2014	2014-09-22 15:29:57.6246	2014-09-22 15:29:57.6246
+5168	Kyle Orton	76	QB	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6276	2014-09-22 15:29:57.6276
+5169	Michael Vick	105	QB	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6306	2014-09-22 15:29:57.6306
+5170	Charlie Whitehurst	110	QB	TEN	0.0	0.0	0.0	0.0	0.0	0.0	Right Finger		Probable	2014-09-21	3	2014	2014-09-22 15:29:57.6356	2014-09-22 15:29:57.6356
+5171	Luke McCown	70	QB	NO	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6396	2014-09-22 15:29:57.6396
+5172	Dan Orlovsky	75	QB	DET	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6426	2014-09-22 15:29:57.6426
+5173	Derek Anderson	2	QB	CAR	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6456	2014-09-22 15:29:57.6456
+5174	Matt Hasselbeck	51	QB	IND	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6486	2014-09-22 15:29:57.6486
+5175	Rex Grossman	45	QB	WAS	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6516	2014-09-22 15:29:57.6516
+5176	Matt Schaub	94	QB	OAK	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:57.6546	2014-09-22 15:29:57.6546
+5177	LeSean McCoy	810	RB	PHI	17.0	15.1	19.0	20.3	17.1	23.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0286	2014-09-22 15:29:58.0286
+5178	DeMarco Murray	1421	RB	DAL	15.9	14.26	21.0	18.8	16.8	23.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0316	2014-09-22 15:29:58.0316
+5179	Giovani Bernard	2273	RB	CIN	14.6	11.63	18.0	18.6	14.2	23.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0376	2014-09-22 15:29:58.0376
+5180	Matt Forte	175	RB	CHI	14.4	8.0	16.8	18.5	13.0	20.83	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0416	2014-09-22 15:29:58.0416
+5181	Le'Veon Bell	2289	RB	PIT	13.0	9.0	17.0	16.9	14.0	21.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0446	2014-09-22 15:29:58.0446
+5182	Knile Davis	2192	RB	KC	12.9	5.0	18.0	16.2	8.0	24.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0486	2014-09-22 15:29:58.0486
+5183	Marshawn Lynch	230	RB	SEA	14.0	11.4	16.1	15.9	12.4	18.0	Back		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.0516	2014-09-22 15:29:58.0516
+5184	Rashad Jennings	805	RB	NYG	12.9	9.03	15.0	15.9	11.03	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0546	2014-09-22 15:29:58.0546
+5185	Bobby Rainey	2034	RB	TB	13.0	8.84	17.0	15.6	10.84	20.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0576	2014-09-22 15:29:58.0576
+5186	Joique Bell	1220	RB	DET	11.8	5.0	16.0	15.0	6.0	20.0	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.0606	2014-09-22 15:29:58.0606
+5187	Zac Stacy	2254	RB	STL	12.9	10.55	18.0	14.8	12.55	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0636	2014-09-22 15:29:58.0636
+5188	Andre Ellington	2221	RB	ARI	11.7	6.9	16.0	14.7	8.9	19.0	Foot		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.0666	2014-09-22 15:29:58.0666
+5189	Montee Ball	2185	RB	DEN	11.8	10.0	14.0	14.6	13.5	17.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0696	2014-09-22 15:29:58.0696
+5190	Eddie Lacy	2313	RB	GB	12.4	10.0	18.1	14.6	11.0	21.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0726	2014-09-22 15:29:58.0726
+5191	Shane Vereen	1430	RB	NE	10.6	6.0	14.3	14.4	9.0	17.3	Shoulder		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.0756	2014-09-22 15:29:58.0756
+5192	Lamar Miller	1761	RB	MIA	11.7	7.0	15.0	14.3	9.0	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0786	2014-09-22 15:29:58.0786
+5193	Reggie Bush	139	RB	DET	10.1	5.8	13.0	13.9	7.8	17.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0816	2014-09-22 15:29:58.0816
+5194	C.J. Spiller	1136	RB	BUF	11.0	6.6	15.0	13.8	8.6	17.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0846	2014-09-22 15:29:58.0846
+5195	Matt Asiata	1496	RB	MIN	11.1	7.44	15.0	13.7	9.44	17.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0886	2014-09-22 15:29:58.0886
+5196	Chris Johnson	208	RB	NYJ	10.8	6.0	13.4	13.7	9.0	15.3	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.0916	2014-09-22 15:29:58.0916
+5197	Darren Sproles	285	RB	PHI	9.9	7.33	17.0	13.6	11.0	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0946	2014-09-22 15:29:58.0946
+5198	Pierre Thomas	292	RB	NO	9.5	6.5	16.0	13.6	8.5	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.0976	2014-09-22 15:29:58.0976
+5199	Ahmad Bradshaw	132	RB	IND	10.1	8.05	16.0	13.1	10.05	21.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1006	2014-09-22 15:29:58.1006
+5200	Danny Woodhead	313	RB	SD	9.1	5.0	13.4	13.1	8.0	16.4	Ankle		Left	2014-09-21	3	2014	2014-09-22 15:29:58.1036	2014-09-22 15:29:58.1036
+5201	Terrance West	2565	RB	CLE	10.7	6.0	17.0	13.0	7.0	20.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1066	2014-09-22 15:29:58.1066
+5202	Donald Brown	798	RB	SD	10.4	6.0	13.7	12.6	8.0	16.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1096	2014-09-22 15:29:58.1096
+5203	Stevan Ridley	1423	RB	NE	11.6	2.5	18.0	12.5	2.5	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1126	2014-09-22 15:29:58.1126
+5204	Alfred Morris	1809	RB	WAS	11.6	9.7	16.0	12.5	10.7	16.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1156	2014-09-22 15:29:58.1156
+5205	Fred Jackson	204	RB	BUF	9.5	5.0	10.7	12.3	6.3	13.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1186	2014-09-22 15:29:58.1186
+5206	Toby Gerhart	1127	RB	JAC	10.2	5.0	12.1	12.3	6.7	15.1	Foot		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.1216	2014-09-22 15:29:58.1216
+5207	Frank Gore	180	RB	SF	10.3	7.0	14.0	11.6	9.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1246	2014-09-22 15:29:58.1246
+5208	Justin Forsett	174	RB	BAL	8.7	3.8	14.0	11.6	6.8	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1286	2014-09-22 15:29:58.1286
+5209	Steven Jackson	205	RB	ATL	9.4	4.0	11.0	11.5	6.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1316	2014-09-22 15:29:58.1316
+5210	Trent Richardson	1879	RB	IND	9.7	5.1	13.0	11.3	6.1	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1376	2014-09-22 15:29:58.1376
+5211	Khiry Robinson	2386	RB	NO	9.1	3.9	13.5	10.5	4.9	15.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1406	2014-09-22 15:29:58.1406
+5212	Alfred Blue	2609	RB	HOU	7.8	0.0	13.3	9.6	0.0	16.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1436	2014-09-22 15:29:58.1436
+5213	Darren McFadden	235	RB	OAK	7.7	5.6	12.1	9.4	6.6	14.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1466	2014-09-22 15:29:58.1466
+5214	Jeremy Hill	2555	RB	CIN	8.0	5.0	13.0	9.2	6.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1496	2014-09-22 15:29:58.1496
+5215	Chris Ivory	1227	RB	NYJ	8.8	3.3	13.0	9.1	3.3	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1526	2014-09-22 15:29:58.1526
+5216	Jacquizz Rodgers	1424	RB	ATL	5.7	1.0	9.6	8.3	1.0	12.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1556	2014-09-22 15:29:58.1556
+5217	DeAngelo Williams	310	RB	CAR	6.7	2.5	11.0	7.9	2.5	12.0	Thigh		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.1586	2014-09-22 15:29:58.1586
+5218	Jonathan Stewart	287	RB	CAR	6.5	4.0	12.0	7.8	5.0	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1616	2014-09-22 15:29:58.1616
+5219	Benjamin Cunningham	2253	RB	STL	5.4	1.8	6.8	7.5	1.8	9.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1656	2014-09-22 15:29:58.1656
+5220	Shonn Greene	803	RB	TEN	6.7	2.9	11.0	7.2	2.9	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1686	2014-09-22 15:29:58.1686
+5221	Isaiah Crowell	2564	RB	CLE	5.5	3.0	7.0	6.6	3.0	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1726	2014-09-22 15:29:58.1726
+5222	Dexter McCluster	1161	RB	TEN	4.5	1.0	5.6	6.4	2.0	9.0	Foot		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.1746	2014-09-22 15:29:58.1746
+5223	Roy Helu	1413	RB	WAS	4.2	0.0	4.9	6.1	0.0	7.0	Quadriceps		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.1786	2014-09-22 15:29:58.1786
+5224	Mike Tolbert	294	RB	CAR	4.1	0.0	5.7	5.8	1.0	7.7	Chest		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.1816	2014-09-22 15:29:58.1816
+5225	Stepfan Taylor	2222	RB	ARI	4.4	1.0	5.8	5.7	2.0	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1846	2014-09-22 15:29:58.1846
+5226	Andre Williams	2464	RB	NYG	4.4	1.0	5.8	5.5	1.9	7.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1876	2014-09-22 15:29:58.1876
+5227	Lance Dunbar	1785	RB	DAL	3.8	1.0	5.2	5.4	2.0	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1916	2014-09-22 15:29:58.1916
+5228	Lorenzo Taliaferro	2549	RB	BAL	4.0	0.3	6.0	5.3	0.3	7.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1946	2014-09-22 15:29:58.1946
+5229	Jerick McKinnon	2602	RB	MIN	3.8	1.0	6.2	5.2	2.0	8.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.1976	2014-09-22 15:29:58.1976
+5230	Bishop Sankey	2642	RB	TEN	3.7	1.0	6.4	5.2	1.0	7.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2006	2014-09-22 15:29:58.2006
+5231	Carlos Hyde	2530	RB	SF	4.4	2.0	7.0	5.0	3.0	8.0	Calf		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.2036	2014-09-22 15:29:58.2036
+5232	Latavius Murray	2201	RB	OAK	3.2	0.0	7.1	5.0	0.2	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2066	2014-09-22 15:29:58.2066
+5233	Marcel Reece	267	RB	OAK	3.1	1.0	4.5	4.9	3.0	6.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2106	2014-09-22 15:29:58.2106
+5234	Bilal Powell	1422	RB	NYJ	3.4	2.0	5.0	4.8	2.0	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2126	2014-09-22 15:29:58.2126
+5235	Damien Williams	2435	RB	MIA	3.2	1.0	4.25	4.7	2.0	6.25	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2156	2014-09-22 15:29:58.2156
+5236	Devonta Freeman	2651	RB	ATL	3.0	0.8	5.8	4.7	0.8	7.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2186	2014-09-22 15:29:58.2186
+5237	Jordan Todman	1429	RB	JAC	3.2	0.0	5.2	4.6	2.0	7.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2216	2014-09-22 15:29:58.2216
+5238	Mike James	2393	RB	TB	3.6	0.8	4.7	4.5	0.8	5.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2246	2014-09-22 15:29:58.2246
+5239	Silas Redd	2476	RB	WAS	3.7	0.7	6.0	4.5	0.7	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2286	2014-09-22 15:29:58.2286
+5240	James Starks	1137	RB	GB	3.5	1.0	5.7	4.4	1.7	6.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2316	2014-09-22 15:29:58.2316
+5241	Robert Turbin	1849	RB	SEA	3.3	1.2	6.0	4.4	1.2	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2386	2014-09-22 15:29:58.2386
+5242	LeGarrette Blount	1221	RB	PIT	3.8	1.3	5.6	4.2	1.3	7.54	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2416	2014-09-22 15:29:58.2416
+5243	Jonathan Grimes	2055	RB	HOU	2.3	0.4	5.16	3.3	0.4	8.16	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2446	2014-09-22 15:29:58.2446
+5244	Darrel Young	1543	RB	WAS	2.2	0.0	4.2	3.2	0.1	5.3	Neck		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.2476	2014-09-22 15:29:58.2476
+5245	Ka'Deem Carey	2580	RB	CHI	2.3	0.0	3.4	3.1	1.0	4.79	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2516	2014-09-22 15:29:58.2516
+5246	Ronnie Hillman	1815	RB	DEN	2.3	0.0	4.0	3.1	0.0	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2536	2014-09-22 15:29:58.2536
+5247	Antone Smith	937	RB	ATL	2.4	0.1	5.3	3.0	0.1	6.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2576	2014-09-22 15:29:58.2576
+5248	Jed Collins	151	RB	DET	1.4	0.0	2.5	2.8	1.0	4.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2606	2014-09-22 15:29:58.2606
+5249	Bruce Miller	1420	RB	SF	1.2	1.0	1.4	2.7	2.4	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2636	2014-09-22 15:29:58.2636
+5250	Travaris Cadet	1974	RB	NO	1.6	0.0	3.17	2.6	0.0	5.17	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2676	2014-09-22 15:29:58.2676
+5251	Dri Archer	2574	RB	PIT	1.7	0.0	4.4	2.6	0.0	6.4	Ankle		Doubtful	2014-09-21	3	2014	2014-09-22 15:29:58.2706	2014-09-22 15:29:58.2706
+5252	C.J. Anderson	2184	RB	DEN	1.9	0.0	4.4	2.4	1.0	6.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2736	2014-09-22 15:29:58.2736
+5253	DuJuan Harris	1511	RB	GB	1.6	0.0	2.1	2.4	0.3	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2766	2014-09-22 15:29:58.2766
+5254	Tommy Bohanon	2147	RB	NYJ	1.3	0.3	1.6	2.3	1.3	2.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2796	2014-09-22 15:29:58.2796
+5255	Cyrus Gray	1818	RB	KC	1.6	0.8	3.3	2.3	1.0	4.3	Foot		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.2826	2014-09-22 15:29:58.2826
+5256	Brandon Bolden	1769	RB	NE	1.5	0.9	2.3	2.2	1.0	3.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.2856	2014-09-22 15:29:58.2856
+5257	Joseph Randle	2157	RB	DAL	1.9	0.0	4.1	2.1	0.0	4.6	Concussion		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.3226	2014-09-22 15:29:58.3226
+5258	John Kuhn	220	RB	GB	1.4	0.0	2.3	1.9	0.0	3.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3266	2014-09-22 15:29:58.3266
+5259	Peyton Hillis	201	RB	NYG	1.3	0.0	2.0	1.9	0.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3296	2014-09-22 15:29:58.3296
+5260	Christine Michael	2244	RB	SEA	1.2	0.0	2.04	1.7	0.0	3.04	Hamstring		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.3336	2014-09-22 15:29:58.3336
+5261	Ronnie Brown	134	RB	HOU	1.3	0.0	3.0	1.7	0.3	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3416	2014-09-22 15:29:58.3416
+5262	James Develin	1381	RB	NE	0.7	0.0	1.6	1.7	1.0	2.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3446	2014-09-22 15:29:58.3446
+5263	Anthony Dixon	1125	RB	BUF	1.3	0.6	1.94	1.6	0.6	2.94	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3476	2014-09-22 15:29:58.3476
+5264	Cedric Peerman	814	RB	CIN	0.2	0.0	0.5	1.2	1.0	1.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3516	2014-09-22 15:29:58.3516
+5265	Patrick DiMarco	1720	RB	ATL	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3556	2014-09-22 15:29:58.3556
+5266	Robert Hughes	1512	RB	ARI	0.6	0.0	1.4	1.0	0.0	2.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3586	2014-09-22 15:29:58.3586
+5267	Will Ta'ufo'ou	939	RB	JAC	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3616	2014-09-22 15:29:58.3616
+5268	Anthony Sherman	1427	RB	KC	0.6	0.0	1.3	1.0	0.0	2.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3656	2014-09-22 15:29:58.3656
+5269	Jorvorskie Lane	2083	RB	TB	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3686	2014-09-22 15:29:58.3686
+5270	Leon Washington	304	RB	TEN	0.5	0.0	1.0	1.0	0.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3716	2014-09-22 15:29:58.3716
+5271	Bryce Brown	1802	RB	BUF	0.9	0.0	2.0	0.9	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3746	2014-09-22 15:29:58.3746
+5272	Tre Mason	2541	RB	STL	0.2	-1.0	1.8	0.8	0.0	2.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3776	2014-09-22 15:29:58.3776
+5273	Shaun Draughn	1502	RB	CHI	0.3	0.0	0.7	0.7	0.0	1.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3806	2014-09-22 15:29:58.3806
+5274	Theo Riddick	2305	RB	DET	0.1	0.0	0.3	0.7	0.3	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3836	2014-09-22 15:29:58.3836
+5275	Derrick Coleman	1918	RB	SEA	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3876	2014-09-22 15:29:58.3876
+5276	Chris Polk	1996	RB	PHI	0.6	0.0	1.0	0.6	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3906	2014-09-22 15:29:58.3906
+5277	Tony Fiammetta	801	RB	CHI	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3936	2014-09-22 15:29:58.3936
+5278	Jerome Felton	173	RB	MIN	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3966	2014-09-22 15:29:58.3966
+5279	Ray Agnew	2566	RB	CLE	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.3996	2014-09-22 15:29:58.3996
+5280	LaMichael James	1839	RB	SF	0.3	0.0	0.6	0.3	0.0	0.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4026	2014-09-22 15:29:58.4026
+5281	Foswhitt Whittaker	2214	RB	CAR	0.3	0.0	0.6	0.3	0.0	0.6	Thigh		Doubtful	2014-09-21	3	2014	2014-09-22 15:29:58.4056	2014-09-22 15:29:58.4056
+5282	Orleans Darkwa	2434	RB	MIA	0.3	0.0	0.7	0.3	0.0	0.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4076	2014-09-22 15:29:58.4076
+5283	Branden Oliver	2513	RB	SD	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4106	2014-09-22 15:29:58.4106
+5284	Joe McKnight	1133	RB	KC	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4136	2014-09-22 15:29:58.4136
+5285	Daniel Herron	1869	RB	IND	0.1	0.0	0.3	0.1	0.0	0.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4166	2014-09-22 15:29:58.4166
+5286	Senorise Perry	2581	RB	CHI	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4496	2014-09-22 15:29:58.4496
+5287	Joe Banyard	1944	RB	MIN	0.1	0.0	0.3	0.1	0.0	0.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4526	2014-09-22 15:29:58.4526
+5288	Jamaal Charles	145	RB	KC	0.0	0.0	11.0	0.0	0.0	13.0	Ankle		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.4556	2014-09-22 15:29:58.4556
+5289	Storm Johnson	2631	RB	JAC	0.0	0.0	0.0	0.0	0.0	0.0	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.4586	2014-09-22 15:29:58.4586
+5290	Tyler Clutts	1380	RB	DAL	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4616	2014-09-22 15:29:58.4616
+5291	Will Johnson	1887	RB	PIT	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4646	2014-09-22 15:29:58.4646
+5292	Maurice Jones-Drew	217	RB	OAK	0.0	-1.0	7.3	0.0	0.0	8.3	Hand		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.4676	2014-09-22 15:29:58.4676
+5293	Vick Ballard	1933	RB	IND	0.0	0.0	0.0	0.0	0.0	0.0	Achilles		Out	2014-08-30	3	2014	2014-09-22 15:29:58.4706	2014-09-22 15:29:58.4706
+5294	Bernard Pierce	1866	RB	BAL	0.0	-1.0	11.7	0.0	0.0	13.7	Thigh		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.4736	2014-09-22 15:29:58.4736
+5295	Doug Martin	1981	RB	TB	0.0	0.0	0.0	0.0	0.0	0.0	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.4766	2014-09-22 15:29:58.4766
+5296	Jackie Battle	123	RB	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4796	2014-09-22 15:29:58.4796
+5297	Henry Hynoski	1798	RB	NYG	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4826	2014-09-22 15:29:58.4826
+5298	Chase Reynolds	1525	RB	STL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4856	2014-09-22 15:29:58.4856
+5299	Frank Summers	818	RB	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4876	2014-09-22 15:29:58.4876
+5300	Arian Foster	917	RB	HOU	0.0	-2.0	17.3	0.0	0.0	20.3	Hamstring		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.4906	2014-09-22 15:29:58.4906
+5301	Kyle Juszczyk	2265	RB	BAL	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4936	2014-09-22 15:29:58.4936
+5302	James White	2444	RB	NE	0.0	0.0	4.0	0.0	0.0	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4966	2014-09-22 15:29:58.4966
+5303	Jamize Olawale	1990	RB	OAK	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.4996	2014-09-22 15:29:58.4996
+5304	Calvin Johnson	454	WR	DET	16.3	14.36	19.5	22.6	20.36	26.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8236	2014-09-22 15:29:58.8236
+5305	Julio Jones	1446	WR	ATL	14.2	12.0	19.0	21.1	19.32	25.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8296	2014-09-22 15:29:58.8296
+5306	Jordy Nelson	502	WR	GB	14.1	11.9	19.0	21.1	18.9	27.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8326	2014-09-22 15:29:58.8326
+5307	Brandon Marshall	480	WR	CHI	13.6	11.7	18.2	19.7	17.7	24.5	Ankle		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.8396	2014-09-22 15:29:58.8396
+5308	Dez Bryant	1143	WR	DAL	12.8	5.8	17.7	19.2	9.8	25.0	Shoulder		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.8426	2014-09-22 15:29:58.8426
+5309	Demaryius Thomas	1172	WR	DEN	12.3	11.0	16.0	18.8	15.1	23.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8456	2014-09-22 15:29:58.8456
+5310	Vincent Jackson	444	WR	TB	12.0	10.19	18.0	17.6	15.19	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8496	2014-09-22 15:29:58.8496
+5311	Antonio Brown	1142	WR	PIT	11.4	6.7	15.0	17.5	9.7	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8526	2014-09-22 15:29:58.8526
+5312	Randall Cobb	1437	WR	GB	11.6	9.3	16.0	16.9	12.3	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8556	2014-09-22 15:29:58.8556
+5313	Pierre Garcon	404	WR	WAS	10.3	5.0	13.5	16.6	10.0	19.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8586	2014-09-22 15:29:58.8586
+5314	A.J. Green	1441	WR	CIN	11.0	7.0	15.5	16.4	12.0	21.5	Toe		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.8616	2014-09-22 15:29:58.8616
+5315	Julian Edelman	832	WR	NE	10.5	9.0	15.0	16.2	14.2	22.0	Back		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.8646	2014-09-22 15:29:58.8646
+5316	Percy Harvin	840	WR	SEA	10.9	8.1	14.0	16.0	11.1	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8676	2014-09-22 15:29:58.8676
+5317	Mike Wallace	863	WR	MIA	10.9	6.9	14.0	16.0	9.9	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8706	2014-09-22 15:29:58.8706
+5318	Sammy Watkins	2432	WR	BUF	10.6	8.36	17.7	15.8	13.36	23.0	Ribs		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.8736	2014-09-22 15:29:58.8736
+5319	Andre Johnson	452	WR	HOU	10.0	7.9	15.3	15.4	10.9	21.3	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.8766	2014-09-22 15:29:58.8766
+5320	Reggie Wayne	573	WR	IND	9.8	6.2	13.4	15.3	8.2	20.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8796	2014-09-22 15:29:58.8796
+5321	Alshon Jeffery	1895	WR	CHI	10.2	7.0	15.7	15.2	12.0	18.7	Hamstring		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.8826	2014-09-22 15:29:58.8826
+5322	Jeremy Maclin	847	WR	PHI	10.4	6.6	13.0	14.9	8.6	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8866	2014-09-22 15:29:58.8866
+5323	Keenan Allen	2215	WR	SD	10.0	7.0	15.0	14.9	11.0	21.0	Groin		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.8896	2014-09-22 15:29:58.8896
+5324	Emmanuel Sanders	1168	WR	DEN	9.3	8.0	11.3	14.8	13.0	16.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8926	2014-09-22 15:29:58.8926
+5325	Michael Crabtree	830	WR	SF	9.7	8.5	13.0	14.7	12.9	20.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8956	2014-09-22 15:29:58.8956
+5326	Marques Colston	371	WR	NO	9.3	3.0	15.6	14.2	6.0	21.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.8986	2014-09-22 15:29:58.8986
+5327	Cordarrelle Patterson	2328	WR	MIN	9.4	7.0	14.2	14.2	11.0	19.2	Chest		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.9016	2014-09-22 15:29:58.9016
+5328	Victor Cruz	1262	WR	NYG	9.2	8.0	13.5	14.2	13.0	19.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9046	2014-09-22 15:29:58.9046
+5329	Larry Fitzgerald	394	WR	ARI	8.9	5.0	11.2	14.1	10.0	17.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9486	2014-09-22 15:29:58.9486
+5330	DeSean Jackson	441	WR	WAS	9.1	4.0	13.5	14.1	8.0	18.5	Shoulder		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.9526	2014-09-22 15:29:58.9526
+5331	Harry Douglas	384	WR	ATL	8.5	5.08	12.0	13.9	7.2	19.0	Foot		Left	2014-09-21	3	2014	2014-09-22 15:29:58.9556	2014-09-22 15:29:58.9556
+5332	T.Y. Hilton	1937	WR	IND	9.0	5.0	13.1	13.8	11.0	16.9	Groin		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.9586	2014-09-22 15:29:58.9586
+5333	James Jones	460	WR	OAK	8.3	4.6	15.0	13.6	6.6	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9616	2014-09-22 15:29:58.9616
+5334	Golden Tate	1170	WR	DET	8.8	6.8	13.0	13.6	8.8	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9646	2014-09-22 15:29:58.9646
+5335	Steve Smith	541	WR	BAL	8.4	6.9	15.0	13.3	10.9	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9676	2014-09-22 15:29:58.9676
+5336	Michael Floyd	1836	WR	ARI	8.9	6.0	12.0	13.2	9.9	16.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9706	2014-09-22 15:29:58.9706
+5337	Brandin Cooks	2669	WR	NO	8.8	4.0	13.3	13.1	8.0	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9736	2014-09-22 15:29:58.9736
+5338	Eric Decker	1146	WR	NYJ	8.5	3.0	12.0	12.8	6.0	16.6	Hamstring		Questionable	2014-09-21	3	2014	2014-09-22 15:29:58.9776	2014-09-22 15:29:58.9776
+5339	Andrew Hawkins	1385	WR	CLE	7.6	6.0	14.3	12.6	11.45	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9806	2014-09-22 15:29:58.9806
+5340	Cecil Shorts III	1457	WR	JAC	7.5	5.0	11.8	12.5	9.6	16.8	Hamstring		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.9826	2014-09-22 15:29:58.9826
+5341	Wes Welker	576	WR	DEN	7.4	5.0	11.9	12.5	11.0	16.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9866	2014-09-22 15:29:58.9866
+5342	Anquan Boldin	341	WR	SF	7.5	4.0	10.9	12.4	6.0	16.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9886	2014-09-22 15:29:58.9886
+5343	Mike Evans	2677	WR	TB	7.6	5.0	14.7	12.3	9.0	17.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9916	2014-09-22 15:29:58.9916
+5344	Kelvin Benjamin	2663	WR	CAR	8.2	4.1	10.0	12.3	6.1	14.9	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:58.9946	2014-09-22 15:29:58.9946
+5345	Kendall Wright	1961	WR	TEN	7.2	5.0	11.3	12.3	8.3	16.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:58.9976	2014-09-22 15:29:58.9976
+5346	Brian Quick	1861	WR	STL	7.8	5.0	14.0	12.1	7.9	21.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0006	2014-09-22 15:29:59.0006
+5347	Torrey Smith	1458	WR	BAL	7.5	5.0	10.0	11.6	8.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0036	2014-09-22 15:29:59.0036
+5348	Greg Jennings	451	WR	MIN	6.8	3.0	10.7	11.3	6.2	14.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0066	2014-09-22 15:29:59.0066
+5349	Markus Wheaton	2293	WR	PIT	6.8	4.58	9.7	11.0	7.58	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0096	2014-09-22 15:29:59.0096
+5350	DeAndre Hopkins	2338	WR	HOU	7.2	5.79	11.0	11.0	8.79	16.0	Illness		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.0136	2014-09-22 15:29:59.0136
+5351	Terrance Williams	2160	WR	DAL	7.2	3.0	12.0	10.9	5.8	16.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0166	2014-09-22 15:29:59.0166
+5352	Brian Hartline	839	WR	MIA	6.6	4.0	8.3	10.8	8.0	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0186	2014-09-22 15:29:59.0186
+5353	Dwayne Bowe	343	WR	KC	6.8	4.0	11.7	10.8	7.0	15.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0216	2014-09-22 15:29:59.0216
+5354	Rueben Randle	1799	WR	NYG	6.7	3.0	8.8	10.5	7.0	12.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0246	2014-09-22 15:29:59.0246
+5355	Jeremy Kerley	1447	WR	NYJ	6.4	2.0	13.0	10.5	5.0	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0276	2014-09-22 15:29:59.0276
+5356	Allen Hurns	2633	WR	JAC	6.6	0.0	8.4	10.3	0.0	12.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0306	2014-09-22 15:29:59.0306
+5357	Justin Hunter	2361	WR	TEN	6.5	3.0	7.6	10.1	6.0	11.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0346	2014-09-22 15:29:59.0346
+5358	Doug Baldwin	1549	WR	SEA	6.3	2.6	9.2	9.9	3.6	13.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0396	2014-09-22 15:29:59.0396
+5359	Kenny Stills	2388	WR	NO	6.2	2.0	9.5	9.3	4.0	13.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0426	2014-09-22 15:29:59.0426
+5360	Robert Woods	2122	WR	BUF	5.9	2.0	9.6	9.2	4.0	13.6	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.0456	2014-09-22 15:29:59.0456
+5361	Malcom Floyd	395	WR	SD	6.3	2.0	11.2	9.2	4.0	15.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0486	2014-09-22 15:29:59.0486
+5362	Riley Cooper	1145	WR	PHI	5.9	2.0	10.1	9.1	4.0	14.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0516	2014-09-22 15:29:59.0516
+5363	Davante Adams	2596	WR	GB	5.5	1.0	9.0	9.0	2.0	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0546	2014-09-22 15:29:59.0546
+5364	Mohamed Sanu	1875	WR	CIN	5.6	4.0	10.7	9.0	7.0	14.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0576	2014-09-22 15:29:59.0576
+5365	Nate Washington	571	WR	TEN	5.5	2.0	9.7	9.0	4.0	13.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0606	2014-09-22 15:29:59.0606
+5366	Miles Austin	328	WR	CLE	5.4	2.8	10.4	8.7	3.8	14.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0636	2014-09-22 15:29:59.0636
+5367	Denarius Moore	1450	WR	OAK	5.3	2.9	7.0	8.6	3.9	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0666	2014-09-22 15:29:59.0666
+5368	Allen Robinson	2635	WR	JAC	5.3	1.0	6.9	8.6	2.0	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0696	2014-09-22 15:29:59.0696
+5369	Andre Holmes	1592	WR	OAK	4.8	0.9	6.6	7.8	0.9	10.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0726	2014-09-22 15:29:59.0726
+5370	Andre Roberts	1166	WR	WAS	4.7	3.82	8.7	7.8	5.82	12.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0756	2014-09-22 15:29:59.0756
+5371	Danny Amendola	323	WR	NE	4.6	2.0	8.7	7.8	4.0	11.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0786	2014-09-22 15:29:59.0786
+5372	John Brown	2523	WR	ARI	4.8	0.4	6.8	7.7	1.4	9.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0816	2014-09-22 15:29:59.0816
+5373	Jermaine Kearse	1850	WR	SEA	4.8	2.0	6.3	7.6	4.0	9.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0846	2014-09-22 15:29:59.0846
+5374	Devin Hester	425	WR	ATL	4.7	2.7	6.4	7.6	4.8	9.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0876	2014-09-22 15:29:59.0876
+5375	Donnie Avery	330	WR	KC	4.5	3.0	9.8	7.5	5.0	13.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0906	2014-09-22 15:29:59.0906
+5376	Jerricho Cotchery	373	WR	CAR	4.6	1.0	9.7	7.5	3.0	13.7	Thigh		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.0936	2014-09-22 15:29:59.0936
+5377	Eddie Royal	526	WR	SD	4.5	1.3	9.4	7.5	2.3	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.0966	2014-09-22 15:29:59.0966
+5378	Hakeem Nicks	853	WR	IND	4.8	1.0	8.3	7.3	3.0	11.3	Illness		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.0996	2014-09-22 15:29:59.0996
+5379	Mike Williams	1178	WR	BUF	4.4	2.0	9.9	7.2	4.6	12.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1036	2014-09-22 15:29:59.1036
+5380	Rod Streater	1829	WR	OAK	4.5	0.0	6.8	7.0	0.0	10.4	Hip		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.1056	2014-09-22 15:29:59.1056
+5381	Jarrett Boykin	2052	WR	GB	3.9	1.8	5.2	6.5	2.8	8.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1086	2014-09-22 15:29:59.1086
+5382	Kenny Britt	825	WR	STL	4.2	2.0	9.7	6.4	3.0	13.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1116	2014-09-22 15:29:59.1116
+5383	Preston Parker	1292	WR	NYG	4.0	1.0	7.9	6.4	3.0	10.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1146	2014-09-22 15:29:59.1146
+5384	Jason Avant	329	WR	CAR	3.8	1.0	7.4	6.3	3.0	10.4	Thigh		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.1176	2014-09-22 15:29:59.1176
+5385	Jordan Matthews	2471	WR	PHI	3.9	2.0	7.3	6.2	3.0	10.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1206	2014-09-22 15:29:59.1206
+5386	Lance Moore	493	WR	PIT	3.4	1.0	10.7	6.0	3.0	14.7	Groin		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.1236	2014-09-22 15:29:59.1236
+5387	Chris Givens	1859	WR	STL	3.7	1.0	6.0	5.9	3.0	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1266	2014-09-22 15:29:59.1266
+5388	Kenbrell Thompkins	2142	WR	NE	3.6	0.0	6.6	5.9	0.0	10.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1296	2014-09-22 15:29:59.1296
+5389	Cole Beasley	1787	WR	DAL	3.1	1.0	6.4	5.8	3.0	9.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1326	2014-09-22 15:29:59.1326
+5390	Brandon Gibson	836	WR	MIA	3.2	1.0	6.8	5.6	3.0	9.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1406	2014-09-22 15:29:59.1406
+5391	Marlon Brown	2266	WR	BAL	3.4	0.5	5.2	5.5	0.5	7.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1436	2014-09-22 15:29:59.1436
+5392	Stevie Johnson	456	WR	SF	3.1	2.0	6.5	5.4	4.0	9.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1466	2014-09-22 15:29:59.1466
+5393	Jacoby Jones	459	WR	BAL	2.6	1.0	3.9	5.2	3.0	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1496	2014-09-22 15:29:59.1496
+5394	Santonio Holmes	431	WR	CHI	2.8	2.0	5.0	5.0	4.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1526	2014-09-22 15:29:59.1526
+5395	Travis Benjamin	1883	WR	CLE	3.0	2.0	7.4	4.9	3.8	10.4	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.1556	2014-09-22 15:29:59.1556
+5396	Stedman Bailey	2258	WR	STL	3.2	0.0	7.1	4.9	0.0	10.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1586	2014-09-22 15:29:59.1586
+5397	Brandon Tate	858	WR	CIN	3.1	0.4	5.6	4.7	0.6	7.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1616	2014-09-22 15:29:59.1616
+5398	Jarvis Landry	2437	WR	MIA	2.4	0.6	5.0	4.5	0.6	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1656	2014-09-22 15:29:59.1656
+5399	David Nelson	1290	WR	NYJ	2.6	1.0	4.4	4.5	2.0	6.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1686	2014-09-22 15:29:59.1686
+5400	Jarius Wright	1923	WR	MIN	3.0	0.9	8.1	4.5	0.9	11.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1716	2014-09-22 15:29:59.1716
+5401	Denard Robinson	2353	WR	JAC	2.6	1.0	7.9	4.4	2.0	10.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1746	2014-09-22 15:29:59.1746
+5402	Ted Ginn Jr.	406	WR	ARI	2.7	0.8	5.9	4.4	0.8	7.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1766	2014-09-22 15:29:59.1766
+5403	Brandon LaFell	1159	WR	NE	3.0	0.0	6.3	4.4	0.0	9.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1806	2014-09-22 15:29:59.1806
+5404	Aldrick Robinson	1454	WR	WAS	2.6	0.0	3.8	4.2	1.0	6.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1826	2014-09-22 15:29:59.1826
+5405	Mike Brown	1948	WR	JAC	2.0	0.9	3.0	4.1	0.9	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1856	2014-09-22 15:29:59.1856
+5406	Damaris Johnson	2000	WR	HOU	2.1	1.0	3.1	4.1	3.0	5.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1886	2014-09-22 15:29:59.1886
+5407	Marlon Moore	1286	WR	CLE	2.4	0.0	3.4	4.0	0.0	5.7	Suspension		Suspend	2014-09-21	3	2014	2014-09-22 15:29:59.1926	2014-09-22 15:29:59.1926
+5408	Austin Pettis	1452	WR	STL	2.2	0.9	3.24	4.0	1.9	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1966	2014-09-22 15:29:59.1966
+5409	Dane Sanzenbacher	1631	WR	CIN	2.1	1.0	3.0	3.9	2.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.1996	2014-09-22 15:29:59.1996
+5410	Junior Hemingway	1820	WR	KC	2.2	1.0	5.1	3.8	2.4	7.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2026	2014-09-22 15:29:59.2026
+5411	Joseph Morgan	1618	WR	NO	2.3	0.0	7.1	3.7	1.0	10.1	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.2056	2014-09-22 15:29:59.2056
+5412	Ryan Grant	2479	WR	WAS	1.9	1.0	5.0	3.7	2.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2086	2014-09-22 15:29:59.2086
+5413	A.J. Jenkins	1841	WR	KC	2.1	0.0	3.0	3.5	0.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2116	2014-09-22 15:29:59.2116
+5414	Chris Owusu	1842	WR	TB	2.0	1.0	6.2	3.5	2.0	9.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2146	2014-09-22 15:29:59.2146
+5415	Robert Meachem	490	WR	NO	1.8	0.6	3.0	3.4	1.6	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2166	2014-09-22 15:29:59.2166
+5416	Louis Murphy	852	WR	TB	2.3	0.0	5.3	3.2	0.0	7.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2196	2014-09-22 15:29:59.2196
+5417	Justin Brown	2291	WR	PIT	1.8	0.0	3.3	3.2	1.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2226	2014-09-22 15:29:59.2226
+5418	Andre Caldwell	358	WR	DEN	1.9	0.0	3.5	3.2	0.0	5.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2256	2014-09-22 15:29:59.2256
+5419	Taylor Gabriel	2567	WR	CLE	1.8	0.0	3.0	3.2	1.0	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2296	2014-09-22 15:29:59.2296
+5420	Donte Moncrief	2622	WR	IND	1.6	1.0	2.7	3.2	2.0	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2316	2014-09-22 15:29:59.2316
+5421	Ricardo Lockette	1609	WR	SEA	2.1	0.0	3.6	3.1	1.0	4.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2376	2014-09-22 15:29:59.2376
+5422	Jaron Brown	2223	WR	ARI	1.7	0.0	3.6	3.0	0.0	5.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2406	2014-09-22 15:29:59.2406
+5423	DeVier Posey	1928	WR	HOU	1.7	1.0	4.7	2.9	2.0	6.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2436	2014-09-22 15:29:59.2436
+5424	Dwayne Harris	1443	WR	DAL	1.8	0.0	2.9	2.9	1.0	4.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2466	2014-09-22 15:29:59.2466
+5425	Keshawn Martin	1927	WR	HOU	1.8	0.0	2.87	2.9	1.0	4.87	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2496	2014-09-22 15:29:59.2496
+5426	Marquise Goodwin	2118	WR	BUF	1.9	0.0	3.6	2.8	0.0	5.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2526	2014-09-22 15:29:59.2526
+5427	Devin Street	2460	WR	DAL	1.5	0.2	2.76	2.8	1.2	4.76	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2556	2014-09-22 15:29:59.2556
+5428	Robert Herron	2678	WR	TB	1.2	0.0	2.2	2.8	1.0	4.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2596	2014-09-22 15:29:59.2596
+5429	Santana Moss	497	WR	WAS	1.4	0.0	3.0	2.7	0.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2626	2014-09-22 15:29:59.2626
+5430	Josh Morgan	495	WR	CHI	1.4	0.0	2.1	2.6	0.0	4.0	Groin		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.2656	2014-09-22 15:29:59.2656
+5431	Tavon Austin	2257	WR	STL	1.5	0.0	3.0	2.6	0.0	5.0	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.2686	2014-09-22 15:29:59.2686
+5432	Rishard Matthews	1765	WR	MIA	1.2	0.0	2.0	2.6	1.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2716	2014-09-22 15:29:59.2716
+5433	Kevin Ogletree	987	WR	DET	1.7	0.0	3.9	2.5	0.0	5.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2746	2014-09-22 15:29:59.2746
+5434	Brandon Lloyd	472	WR	SF	1.4	0.0	2.0	2.4	0.0	3.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2776	2014-09-22 15:29:59.2776
+5435	Derek Hagan	410	WR	TEN	1.2	0.0	2.7	2.2	0.0	4.7	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2806	2014-09-22 15:29:59.2806
+5436	Griff Whalen	1939	WR	IND	1.0	0.0	2.0	2.2	0.0	4.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2826	2014-09-22 15:29:59.2826
+5437	Adam Thielen	2330	WR	MIN	1.3	0.0	3.1	2.2	0.0	5.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.2856	2014-09-22 15:29:59.2856
+5438	Corey Washington	2526	WR	NYG	1.4	0.0	3.2	2.2	0.0	5.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3076	2014-09-22 15:29:59.3076
+5439	Jeremy Ross	1629	WR	DET	1.1	0.2	3.0	1.9	0.3	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3116	2014-09-22 15:29:59.3116
+5440	Martavis Bryant	2575	WR	PIT	1.1	0.0	2.51	1.8	0.0	3.51	Shoulder		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.3146	2014-09-22 15:29:59.3146
+5441	Bryan Walters	1354	WR	SEA	0.8	0.6	1.0	1.8	1.6	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3176	2014-09-22 15:29:59.3176
+5442	Paul Richardson	2537	WR	SEA	1.1	0.0	2.0	1.7	0.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3226	2014-09-22 15:29:59.3226
+5443	Brad Smith	538	WR	PHI	1.0	0.0	2.4	1.5	0.0	3.4	Groin		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.3266	2014-09-22 15:29:59.3266
+5444	Bruce Ellington	2532	WR	SF	0.7	0.0	1.9	1.4	0.0	2.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3296	2014-09-22 15:29:59.3296
+5445	Kamar Aiken	1547	WR	BAL	0.7	0.0	1.1	1.4	0.0	2.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3336	2014-09-22 15:29:59.3336
+5446	Ryan Broyles	1901	WR	DET	0.6	0.0	1.0	1.3	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3396	2014-09-22 15:29:59.3396
+5447	Nick Toon	1978	WR	NO	0.2	-1.0	1.8	1.2	0.0	2.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3436	2014-09-22 15:29:59.3436
+5448	Brenton Bersin	2068	WR	CAR	0.6	0.0	2.0	1.2	0.0	3.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3456	2014-09-22 15:29:59.3456
+5449	Brice Butler	2203	WR	OAK	0.1	0.0	0.3	1.1	1.0	1.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3486	2014-09-22 15:29:59.3486
+5450	Greg Salas	1455	WR	NYJ	0.8	0.0	1.6	1.1	0.0	2.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3516	2014-09-22 15:29:59.3516
+5451	Quinton Patton	2241	WR	SF	0.1	0.0	0.2	1.1	1.0	1.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3546	2014-09-22 15:29:59.3546
+5452	Frankie Hammond Jr.	2195	WR	KC	0.6	0.0	1.0	1.1	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3576	2014-09-22 15:29:59.3576
+5453	Da'Rick Rogers	2121	WR	IND	0.5	0.0	1.0	1.1	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3616	2014-09-22 15:29:59.3616
+5454	Jeff Maehl	1610	WR	PHI	0.7	0.0	1.79	1.0	0.0	2.79	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3636	2014-09-22 15:29:59.3636
+5455	Chris Hogan	1590	WR	BUF	0.2	0.0	0.5	0.6	0.0	1.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3666	2014-09-22 15:29:59.3666
+5456	Ramses Barden	823	WR	JAC	0.1	0.0	0.3	0.6	0.0	1.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.3696	2014-09-22 15:29:59.3696
+5457	Eric Weems	575	WR	ATL	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4016	2014-09-22 15:29:59.4016
+5458	Russell Shepard	2172	WR	TB	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4046	2014-09-22 15:29:59.4046
+5459	Marcus Easley	1149	WR	BUF	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4076	2014-09-22 15:29:59.4076
+5460	Seyi Ajirotutu	1338	WR	SD	0.2	0.0	0.6	0.4	0.0	1.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4106	2014-09-22 15:29:59.4106
+5461	Darrius Heyward-Bey	841	WR	PIT	0.2	0.0	0.6	0.2	0.0	0.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4136	2014-09-22 15:29:59.4136
+5462	Jalen Saunders	2454	WR	NYJ	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4166	2014-09-22 15:29:59.4166
+5463	Matthew Slater	537	WR	NE	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4206	2014-09-22 15:29:59.4206
+5464	Courtney Roby	525	WR	ATL	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4236	2014-09-22 15:29:59.4236
+5465	Jeff Janis	2597	WR	GB	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4266	2014-09-22 15:29:59.4266
+5466	Dontrelle Inman	1594	WR	SD	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4296	2014-09-22 15:29:59.4296
+5467	Aaron Dobson	2139	WR	NE	0.0	-1.0	5.7	0.0	0.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4326	2014-09-22 15:29:59.4326
+5468	Marqise Lee	2634	WR	JAC	0.0	-1.0	0.0	0.0	0.0	0.0	Hamstring		Out	2014-09-21	3	2014	2014-09-22 15:29:59.4376	2014-09-22 15:29:59.4376
+5469	Josh Huff	2470	WR	PHI	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4416	2014-09-22 15:29:59.4416
+5470	Rodney Smith	2329	WR	MIN	0.0	0.0	0.0	0.0	0.0	0.0	Hamstring		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.4446	2014-09-22 15:29:59.4446
+5471	Kyle Williams	1176	WR	KC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4486	2014-09-22 15:29:59.4486
+5472	Micheal Spurlock	543	WR	CHI	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4516	2014-09-22 15:29:59.4516
+5473	Jared Abbrederis	2595	WR	GB	0.0	0.0	0.0	0.0	0.0	0.0	Knee		Out	2014-09-02	3	2014	2014-09-22 15:29:59.4546	2014-09-22 15:29:59.4546
+5474	Arrelious Benn	1140	WR	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4586	2014-09-22 15:29:59.4586
+5475	Isaiah Burse	2489	WR	DEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4616	2014-09-22 15:29:59.4616
+5476	Cody Latimer	2492	WR	DEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4646	2014-09-22 15:29:59.4646
+5477	Albert Wilson	2501	WR	KC	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4676	2014-09-22 15:29:59.4676
+5478	Mike Thomas	860	WR	HOU	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4706	2014-09-22 15:29:59.4706
+5479	Justin Blackmon	1947	WR	JAC	0.0	0.0	0.0	0.0	0.0	0.0	Suspension		Suspend	2014-09-21	3	2014	2014-09-22 15:29:59.4726	2014-09-22 15:29:59.4726
+5480	Deonte Thompson	2037	WR	BAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4756	2014-09-22 15:29:59.4756
+5481	James Wright	2561	WR	CIN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.4786	2014-09-22 15:29:59.4786
+5482	Roddy White	578	WR	ATL	0.0	-2.0	15.1	0.0	0.0	21.1	Hamstring		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.4816	2014-09-22 15:29:59.4816
+5483	Odell Beckham Jr.	2465	WR	NYG	0.0	-1.0	0.0	0.0	0.0	0.0	Hamstring		Out	2014-09-21	3	2014	2014-09-22 15:29:59.4846	2014-09-22 15:29:59.4846
+5484	Jimmy Graham	1187	TE	NO	13.0	11.0	17.0	19.9	17.16	26.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.7966	2014-09-22 15:29:59.7966
+5485	Rob Gronkowski	1189	TE	NE	10.2	8.8	13.0	14.8	13.0	18.0	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8016	2014-09-22 15:29:59.8016
+5486	Julius Thomas	1471	TE	DEN	9.0	4.2	14.0	14.0	6.2	21.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8056	2014-09-22 15:29:59.8056
+5487	Antonio Gates	643	TE	SD	8.5	6.4	14.0	13.4	10.3	20.0	Hamstring		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8096	2014-09-22 15:29:59.8096
+5488	Greg Olsen	684	TE	CAR	8.2	4.9	12.0	12.7	6.9	18.0	Calf		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8136	2014-09-22 15:29:59.8136
+5489	Jordan Cameron	1461	TE	CLE	7.6	5.9	13.0	12.2	7.9	18.0	Shoulder		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.8186	2014-09-22 15:29:59.8186
+5490	Jason Witten	733	TE	DAL	7.1	4.2	12.8	11.9	6.2	17.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8216	2014-09-22 15:29:59.8216
+5491	Martellus Bennett	602	TE	CHI	7.5	5.3	13.0	11.8	7.3	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8256	2014-09-22 15:29:59.8256
+5492	Delanie Walker	564	TE	TEN	7.3	5.0	17.0	11.7	8.1	24.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8286	2014-09-22 15:29:59.8286
+5493	Larry Donnell	2095	TE	NYG	7.3	4.4	12.0	11.6	7.4	18.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8316	2014-09-22 15:29:59.8316
+5494	Kyle Rudolph	1467	TE	MIN	6.9	3.4	13.0	11.2	5.4	18.0	Abdomen		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8366	2014-09-22 15:29:59.8366
+5495	Dennis Pitta	1199	TE	BAL	6.7	4.1	11.0	11.0	6.1	17.0	Hip		Left	2014-09-21	3	2014	2014-09-22 15:29:59.8406	2014-09-22 15:29:59.8406
+5496	Niles Paul	1451	TE	WAS	6.7	4.7	15.0	10.7	6.7	22.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8436	2014-09-22 15:29:59.8436
+5497	Zach Ertz	2173	TE	PHI	6.8	4.7	13.0	9.8	6.7	17.0	Knee		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8466	2014-09-22 15:29:59.8466
+5498	Charles Clay	1408	TE	MIA	5.7	3.6	8.3	9.7	5.6	12.3	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.8496	2014-09-22 15:29:59.8496
+5499	Heath Miller	675	TE	PIT	5.3	2.9	8.6	9.4	4.9	13.0	Not Injury Related		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8526	2014-09-22 15:29:59.8526
+5500	Jared Cook	872	TE	STL	5.8	3.7	8.0	9.2	5.7	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8556	2014-09-22 15:29:59.8556
+5501	Travis Kelce	2198	TE	KC	6.0	3.0	11.0	9.0	5.0	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8586	2014-09-22 15:29:59.8586
+5502	Brandon Myers	882	TE	TB	5.4	2.81	8.9	8.8	4.81	12.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8616	2014-09-22 15:29:59.8616
+5503	Jermaine Gresham	1188	TE	CIN	4.6	2.0	8.1	7.9	4.7	12.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8646	2014-09-22 15:29:59.8646
+5504	Derek Carrier	1825	TE	SF	4.3	1.0	6.0	7.5	2.0	9.5	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8676	2014-09-22 15:29:59.8676
+5505	Levine Toilolo	2375	TE	ATL	4.7	2.0	8.6	7.4	3.7	12.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8706	2014-09-22 15:29:59.8706
+5506	Zach Miller	676	TE	SEA	4.3	1.0	12.0	7.0	3.0	16.0	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8726	2014-09-22 15:29:59.8726
+5507	Coby Fleener	1941	TE	IND	4.5	2.0	9.0	7.0	4.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8756	2014-09-22 15:29:59.8756
+5508	Eric Ebron	2587	TE	DET	4.2	1.6	7.0	6.9	2.6	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8786	2014-09-22 15:29:59.8786
+5509	Dwayne Allen	1940	TE	IND	4.3	1.7	8.0	6.8	2.7	11.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8816	2014-09-22 15:29:59.8816
+5510	Anthony Fasano	634	TE	KC	3.9	2.0	5.0	6.7	3.2	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8846	2014-09-22 15:29:59.8846
+5511	Garrett Graham	1186	TE	HOU	4.0	3.0	9.0	6.7	5.2	13.0	Ankle		Probable	2014-09-21	3	2014	2014-09-22 15:29:59.8886	2014-09-22 15:29:59.8886
+5512	Mychal Rivera	2210	TE	OAK	3.9	2.0	5.9	6.7	3.4	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8916	2014-09-22 15:29:59.8916
+5513	Logan Paulsen	1322	TE	WAS	3.9	0.0	7.0	6.3	1.0	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8946	2014-09-22 15:29:59.8946
+5514	Owen Daniels	622	TE	BAL	3.7	2.0	6.0	6.2	3.29	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.8976	2014-09-22 15:29:59.8976
+5515	Luke Willson	2251	TE	SEA	3.4	1.0	4.2	5.9	2.0	7.2	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9006	2014-09-22 15:29:59.9006
+5516	Scott Chandler	613	TE	BUF	3.6	1.0	7.4	5.8	2.0	10.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9026	2014-09-22 15:29:59.9026
+5517	John Carlson	611	TE	ARI	3.1	1.0	5.0	5.3	2.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9056	2014-09-22 15:29:59.9056
+5518	Lance Kendricks	1466	TE	STL	3.1	1.0	5.4	5.2	3.0	8.4	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9086	2014-09-22 15:29:59.9086
+5519	Jeff Cumberland	1313	TE	NYJ	3.1	1.0	5.0	5.2	3.0	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9116	2014-09-22 15:29:59.9116
+5520	Jace Amaro	2455	TE	NYJ	3.0	1.81	5.0	5.1	2.81	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9146	2014-09-22 15:29:59.9146
+5521	Richard Rodgers	2600	TE	GB	3.1	0.0	5.0	5.0	0.0	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9176	2014-09-22 15:29:59.9176
+5522	Clay Harbor	1190	TE	JAC	2.9	-1.0	5.9	4.9	0.0	8.9	Calf		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.9206	2014-09-22 15:29:59.9206
+5523	Ladarius Green	1833	TE	SD	2.9	1.0	5.0	4.6	2.2	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9236	2014-09-22 15:29:59.9236
+5524	Brent Celek	612	TE	PHI	2.9	1.0	4.0	4.4	3.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9666	2014-09-22 15:29:59.9666
+5525	Harold Hoskins	2439	TE	MIA	4.3	0.0	10.0	4.3	0.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9706	2014-09-22 15:29:59.9706
+5526	Andrew Quarless	1200	TE	GB	2.2	0.0	7.3	4.1	1.0	10.3	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9736	2014-09-22 15:29:59.9736
+5527	Tim Wright	2396	TE	NE	2.3	1.0	4.0	4.1	3.0	6.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9766	2014-09-22 15:29:59.9766
+5528	Rob Housler	1465	TE	ARI	2.3	0.0	6.4	4.1	1.0	9.4	Hip		Questionable	2014-09-21	3	2014	2014-09-22 15:29:59.9796	2014-09-22 15:29:59.9796
+5529	Joseph Fauria	2307	TE	DET	2.4	0.4	3.9	4.0	0.7	5.9	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9826	2014-09-22 15:29:59.9826
+5530	Jim Dray	1183	TE	CLE	2.1	0.0	4.0	3.9	1.0	7.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9856	2014-09-22 15:29:59.9856
+5531	Brandon Pettigrew	888	TE	DET	2.3	0.0	6.8	3.8	1.0	9.8	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9886	2014-09-22 15:29:59.9886
+5532	Adrien Robinson	1800	TE	NYG	2.3	0.0	4.0	3.7	0.0	6.1	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9906	2014-09-22 15:29:59.9906
+5533	Jacob Tamme	724	TE	DEN	1.7	0.0	3.0	3.5	1.1	5.0	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9946	2014-09-22 15:29:59.9946
+5534	Ed Dickson	1182	TE	CAR	1.9	1.0	2.8	3.1	2.0	4.6	\N	\N	\N	\N	3	2014	2014-09-22 15:29:59.9976	2014-09-22 15:29:59.9976
+5535	Ryan Griffin	2342	TE	HOU	1.7	0.0	2.9	3.0	1.0	4.9	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0006	2014-09-22 15:30:00.0006
+5536	Gavin Escobar	2161	TE	DAL	1.8	0.0	4.3	2.9	1.0	6.3	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:30:00.0036	2014-09-22 15:30:00.0036
+5537	Benjamin Watson	730	TE	NO	1.5	0.0	4.3	2.9	0.0	6.3	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0066	2014-09-22 15:30:00.0066
+5538	Virgil Green	1463	TE	DEN	1.4	0.0	3.2	2.8	1.0	5.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0096	2014-09-22 15:30:00.0096
+5539	Dion Sims	2133	TE	MIA	1.4	0.0	2.0	2.7	1.0	3.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0126	2014-09-22 15:30:00.0126
+5540	Gary Barnidge	600	TE	CLE	1.4	0.0	3.4	2.6	0.0	5.4	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0156	2014-09-22 15:30:00.0156
+5541	Daniel Fells	635	TE	NYG	1.9	1.0	3.1	2.6	1.0	4.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0186	2014-09-22 15:30:00.0186
+5542	Vance McDonald	2242	TE	SF	1.4	0.0	2.0	2.5	1.0	3.1	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:30:00.0216	2014-09-22 15:30:00.0216
+5543	Dante Rosario	697	TE	CHI	1.3	0.0	2.0	2.4	1.0	3.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0246	2014-09-22 15:30:00.0246
+5544	Jack Doyle	2364	TE	IND	1.4	0.0	2.7	2.3	0.0	4.4	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0276	2014-09-22 15:30:00.0276
+5545	Taylor Thompson	1963	TE	TEN	0.9	0.0	2.0	2.3	1.0	4.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0306	2014-09-22 15:30:00.0306
+5546	Mickey Shuler	1201	TE	JAC	1.0	0.0	2.0	2.0	0.0	4.0	Heel		Probable	2014-09-21	3	2014	2014-09-22 15:30:00.0336	2014-09-22 15:30:00.0336
+5547	Rhett Ellison	1924	TE	MIN	1.1	0.9	1.8	1.9	1.5	2.8	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0396	2014-09-22 15:30:00.0396
+5548	Troy Niklas	2527	TE	ARI	0.9	0.0	1.4	1.8	0.0	2.3	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0426	2014-09-22 15:30:00.0426
+5549	C.J. Fiedorowicz	2616	TE	HOU	0.9	0.0	1.97	1.7	0.0	2.97	Foot		Probable	2014-09-21	3	2014	2014-09-22 15:30:00.0456	2014-09-22 15:30:00.0456
+5550	David Ausberry	1433	TE	OAK	1.2	0.0	2.46	1.7	0.0	3.46	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0486	2014-09-22 15:30:00.0486
+5551	Michael Hoomanawanui	1192	TE	NE	0.6	0.0	1.0	1.3	0.0	2.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0516	2014-09-22 15:30:00.0516
+5552	Bear Pascoe	887	TE	ATL	0.1	0.0	0.2	1.1	1.0	1.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0546	2014-09-22 15:30:00.0546
+5553	Richie Brockel	1357	TE	CAR	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0566	2014-09-22 15:30:00.0566
+5554	Lee Smith	1468	TE	BUF	0.4	0.0	1.0	0.9	0.0	2.0	Toe		Probable	2014-09-21	3	2014	2014-09-22 15:30:00.0596	2014-09-22 15:30:00.0596
+5555	Luke Stocker	1469	TE	TB	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0626	2014-09-22 15:30:00.0626
+5556	Zach Sudfeld	2144	TE	NYJ	0.2	0.0	0.7	0.6	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0666	2014-09-22 15:30:00.0666
+5557	Matt Spaeth	716	TE	PIT	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0696	2014-09-22 15:30:00.0696
+5558	Cory Harkey	1863	TE	STL	0.0	0.0	0.0	0.6	0.0	1.0	Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:30:00.0726	2014-09-22 15:30:00.0726
+5559	James Hanna	1794	TE	DAL	0.0	0.0	0.0	0.6	0.0	1.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0766	2014-09-22 15:30:00.0766
+5560	Marcel Jensen	2636	TE	JAC	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0796	2014-09-22 15:30:00.0796
+5561	David Johnson	878	TE	SD	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0826	2014-09-22 15:30:00.0826
+5562	Craig Stevens	718	TE	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0856	2014-09-22 15:30:00.0856
+5563	James Casey	870	TE	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0886	2014-09-22 15:30:00.0886
+5564	Chris Gragg	2123	TE	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0916	2014-09-22 15:30:00.0916
+5565	Brandon Williams	2383	TE	CAR	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0946	2014-09-22 15:30:00.0946
+5566	Jordan Thompson	2589	TE	DET	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.0976	2014-09-22 15:30:00.0976
+5567	Michael Palmer	1197	TE	PIT	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1006	2014-09-22 15:30:00.1006
+5568	Joel Dreessen	631	TE	DEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1036	2014-09-22 15:30:00.1036
+5569	D.J. Tialavea	2638	TE	JAC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1066	2014-09-22 15:30:00.1066
+5570	Josh Hill	2389	TE	NO	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1096	2014-09-22 15:30:00.1096
+5571	Anthony McCoy	1193	TE	SEA	0.0	0.0	0.0	0.0	0.0	0.0	Achilles		Out	2014-08-01	3	2014	2014-09-22 15:30:00.1126	2014-09-22 15:30:00.1126
+5572	Matthew Mulligan	680	TE	CHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1156	2014-09-22 15:30:00.1156
+5573	Jordan Reed	2181	TE	WAS	-0.5	-1.0	0.0	0.0	0.0	0.0	Hamstring		Out	2014-09-21	3	2014	2014-09-22 15:30:00.1196	2014-09-22 15:30:00.1196
+5574	Demetrius Harris	2197	TE	KC	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1226	2014-09-22 15:30:00.1226
+5575	Billy Bajema	598	TE	BAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1256	2014-09-22 15:30:00.1256
+5576	Marcedes Lewis	668	TE	JAC	0.0	0.0	0.0	0.0	0.0	0.0			Out	2014-09-17	3	2014	2014-09-22 15:30:00.1296	2014-09-22 15:30:00.1296
+5577	Vernon Davis	626	TE	SF	0.0	0.0	9.8	0.0	0.0	12.0	Ankle, Knee		Questionable	2014-09-21	3	2014	2014-09-22 15:30:00.1326	2014-09-22 15:30:00.1326
+5578	Brandon Bostick	2080	TE	GB	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1376	2014-09-22 15:30:00.1376
+5579	Tyler Eifert	2279	TE	CIN	0.0	0.0	0.0	0.0	0.0	0.0			Out	2014-09-11	3	2014	2014-09-22 15:30:00.1416	2014-09-22 15:30:00.1416
+5580	Kyle Miller	1667	TE	MIA	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.1436	2014-09-22 15:30:00.1436
+5581	Alex Smith	712	TE	CIN	0.0	0.0	0.0	0.0	0.0	0.0	Biceps		Out	2014-09-16	3	2014	2014-09-22 15:30:00.1466	2014-09-22 15:30:00.1466
+5582	Austin Seferian-Jenkins	2682	TE	TB	-0.5	-1.0	0.0	0.0	0.0	0.0	Ankle		Out	2014-09-21	3	2014	2014-09-22 15:30:00.1496	2014-09-22 15:30:00.1496
+5583	Stephen Gostkowski	752	K	NE	9.7	8.8	15.5	9.7	8.8	15.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4496	2014-09-22 15:30:00.4496
+5584	Dan Bailey	1685	K	DAL	9.2	7.0	13.0	9.2	7.0	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4546	2014-09-22 15:30:00.4546
+5585	Matt Bryant	743	K	ATL	8.9	7.94	14.0	8.9	7.94	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4596	2014-09-22 15:30:00.4596
+5586	Dan Carpenter	745	K	BUF	8.8	5.0	11.5	8.8	5.0	11.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4636	2014-09-22 15:30:00.4636
+5587	Adam Vinatieri	777	K	IND	8.8	7.0	12.0	8.8	7.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4676	2014-09-22 15:30:00.4676
+5588	Shayne Graham	754	K	NO	8.7	6.0	11.5	8.7	6.0	11.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4716	2014-09-22 15:30:00.4716
+5589	Cody Parkey	2626	K	PHI	8.7	6.0	10.5	8.7	6.0	10.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4756	2014-09-22 15:30:00.4756
+5590	Justin Tucker	2079	K	BAL	8.7	5.0	12.5	8.7	5.0	12.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4796	2014-09-22 15:30:00.4796
+5591	Nick Novak	1328	K	SD	8.6	5.0	11.0	8.6	5.0	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4826	2014-09-22 15:30:00.4826
+5592	Mason Crosby	747	K	GB	8.6	6.0	11.5	8.6	6.0	11.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4856	2014-09-22 15:30:00.4856
+5593	Blair Walsh	1925	K	MIN	8.5	6.8	11.0	8.5	6.8	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4886	2014-09-22 15:30:00.4886
+5594	Steven Hauschka	758	K	SEA	8.3	7.0	12.0	8.3	7.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4916	2014-09-22 15:30:00.4916
+5595	Phil Dawson	748	K	SF	8.2	5.0	9.0	8.2	5.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4946	2014-09-22 15:30:00.4946
+5596	Graham Gano	1031	K	CAR	8.2	6.0	14.0	8.2	6.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.4976	2014-09-22 15:30:00.4976
+5597	Brandon McManus	2349	K	DEN	8.1	5.0	9.0	8.1	5.0	9.0	Right Groin		Probable	2014-09-21	3	2014	2014-09-22 15:30:00.5006	2014-09-22 15:30:00.5006
+5598	Cairo Santos	2502	K	KC	8.0	4.8	9.8	8.0	4.8	9.8	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5036	2014-09-22 15:30:00.5036
+5599	Caleb Sturgis	2134	K	MIA	7.9	5.0	11.0	7.9	5.0	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5066	2014-09-22 15:30:00.5066
+5600	Mike Nugent	768	K	CIN	7.8	5.0	9.0	7.8	5.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5086	2014-09-22 15:30:00.5086
+5601	Nick Folk	751	K	NYJ	7.8	5.0	9.4	7.8	5.0	9.4	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5116	2014-09-22 15:30:00.5116
+5602	Kai Forbath	1687	K	WAS	7.7	4.0	9.0	7.7	4.0	9.0	Right Groin		Questionable	2014-09-21	3	2014	2014-09-22 15:30:00.5146	2014-09-22 15:30:00.5146
+5603	Billy Cundiff	1101	K	CLE	7.6	5.0	8.1	7.6	5.0	8.1	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5176	2014-09-22 15:30:00.5176
+5604	Greg Zuerlein	1865	K	STL	7.5	5.0	12.0	7.5	5.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5206	2014-09-22 15:30:00.5206
+5605	Shaun Suisham	775	K	PIT	7.5	5.0	8.2	7.5	5.0	8.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5236	2014-09-22 15:30:00.5236
+5606	Randy Bullock	1930	K	HOU	7.4	5.0	10.0	7.4	5.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5266	2014-09-22 15:30:00.5266
+5607	Chandler Catanzaro	2528	K	ARI	7.3	4.0	9.5	7.3	4.0	9.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5296	2014-09-22 15:30:00.5296
+5608	Robbie Gould	753	K	CHI	7.3	6.0	8.2	7.3	6.0	8.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5326	2014-09-22 15:30:00.5326
+5609	Nate Freese	2590	K	DET	7.2	2.0	12.0	7.2	2.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5386	2014-09-22 15:30:00.5386
+5610	Ryan Succop	893	K	TEN	7.2	4.0	10.0	7.2	4.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5416	2014-09-22 15:30:00.5416
+5611	Patrick Murray	2684	K	TB	7.2	3.7	8.7	7.2	3.7	8.7	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5806	2014-09-22 15:30:00.5806
+5612	Josh Brown	741	K	NYG	7.1	5.0	8.5	7.1	5.0	8.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5846	2014-09-22 15:30:00.5846
+5613	Sebastian Janikowski	759	K	OAK	6.8	4.0	8.2	6.8	4.0	8.2	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5876	2014-09-22 15:30:00.5876
+5614	Josh Scobee	773	K	JAC	6.8	4.0	8.5	6.8	4.0	8.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5906	2014-09-22 15:30:00.5906
+5615	Rian Lindell	762	K	TB	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5936	2014-09-22 15:30:00.5936
+5616	Travis Coons	2649	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5966	2014-09-22 15:30:00.5966
+5617	Zach Hocker	2484	K	WAS	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.5996	2014-09-22 15:30:00.5996
+5618	Maikon Bonani	2365	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.6026	2014-09-22 15:30:00.6026
+5619	Jay Feely	750	K	ARI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.6056	2014-09-22 15:30:00.6056
+5620	Rob Bironas	740	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.6086	2014-09-22 15:30:00.6086
+5621	Danny Hrapmann	2042	K	MIA	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.6116	2014-09-22 15:30:00.6116
+5622	Matt Prater	769	K	DEN	0.0	0.0	0.0	0.0	0.0	0.0	Suspension		Suspend	2014-09-21	3	2014	2014-09-22 15:30:00.6146	2014-09-22 15:30:00.6146
+5623	Dustin Hopkins	2124	K	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.6176	2014-09-22 15:30:00.6176
+5624	Patriots	1041	DST	NE	10.5	6.8	19.0	10.5	6.8	19.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9236	2014-09-22 15:30:00.9236
+5625	Panthers	1048	DST	CAR	10.2	7.5	13.0	10.2	7.5	13.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9306	2014-09-22 15:30:00.9306
+5626	Texans	1063	DST	HOU	9.3	6.7	15.0	9.3	6.7	15.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9366	2014-09-22 15:30:00.9366
+5627	49ers	1055	DST	SF	9.2	1.0	14.0	9.2	1.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9406	2014-09-22 15:30:00.9406
+5628	Ravens	1038	DST	BAL	8.8	4.0	13.5	8.8	4.0	13.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9436	2014-09-22 15:30:00.9436
+5629	Chiefs	1064	DST	KC	8.8	2.0	14.0	8.8	2.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9466	2014-09-22 15:30:00.9466
+5630	Bengals	1059	DST	CIN	8.7	1.0	12.0	8.7	1.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9496	2014-09-22 15:30:00.9496
+5631	Eagles	1043	DST	PHI	8.6	4.0	14.0	8.6	4.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9526	2014-09-22 15:30:00.9526
+5632	Browns	1060	DST	CLE	8.6	4.0	12.0	8.6	4.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9566	2014-09-22 15:30:00.9566
+5633	Colts	1051	DST	IND	8.5	1.0	16.0	8.5	1.0	16.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9596	2014-09-22 15:30:00.9596
+5761	Darrel Young	1543	RB	WAS	1.5	0.1	3.0	2.5	1.1	4.0	Neck		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.388	2014-09-23 17:12:45.388
+5634	Bears	1049	DST	CHI	8.1	2.0	10.0	8.1	2.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9626	2014-09-22 15:30:00.9626
+5762	Bilal Powell	1422	RB	NYJ	1.2	0.0	2.4	2.2	1.0	3.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.393	2014-09-23 17:12:45.393
+5635	Giants	1036	DST	NYG	7.8	4.0	12.0	7.8	4.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9656	2014-09-22 15:30:00.9656
+5763	Damien Williams	2435	RB	MIA	1.6	0.0	3.18	2.1	0.0	4.18	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.397	2014-09-23 17:12:45.397
+5636	Cardinals	1045	DST	ARI	7.5	4.0	14.0	7.5	4.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9686	2014-09-22 15:30:00.9686
+5764	Daniel Thomas	1428	RB	MIA	1.2	0.0	2.53	1.9	0.0	3.53	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.401	2014-09-23 17:12:45.401
+5637	Saints	1065	DST	NO	7.5	1.0	14.0	7.5	1.0	14.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9726	2014-09-22 15:30:00.9726
+5765	Antone Smith	937	RB	ATL	1.2	0.0	2.0	1.9	0.0	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.404	2014-09-23 17:12:45.404
+5638	Seahawks	1056	DST	SEA	7.3	3.0	10.5	7.3	3.0	10.5	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9776	2014-09-22 15:30:00.9776
+5766	Anthony Dixon	1125	RB	BUF	1.3	0.8	1.83	1.8	0.8	2.83	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.409	2014-09-23 17:12:45.409
+5639	Broncos	1061	DST	DEN	7.3	3.0	12.0	7.3	3.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9806	2014-09-22 15:30:00.9806
+5767	De'Anthony Thomas	2496	RB	KC	0.5	0.0	1.4	1.8	0.0	3.3	Hamstring		Out	2014-09-23	4	2014	2014-09-23 17:12:45.412	2014-09-23 17:12:45.412
+5640	Buccaneers	1057	DST	TB	6.9	3.0	10.0	6.9	3.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9836	2014-09-22 15:30:00.9836
+5768	Cyrus Gray	1818	RB	KC	1.2	0.0	3.3	1.8	0.0	4.3	Foot		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.417	2014-09-23 17:12:45.417
+5769	Branden Oliver	2513	RB	SD	1.2	0.2	2.0	1.8	0.2	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.421	2014-09-23 17:12:45.421
+5770	Anthony Sherman	1427	RB	KC	0.6	0.0	1.1	1.6	1.0	2.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.425	2014-09-23 17:12:45.425
+5771	Mike James	2393	RB	TB	1.0	0.0	2.3	1.5	0.0	3.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.429	2014-09-23 17:12:45.429
+5772	James Develin	1381	RB	NE	0.5	0.0	1.1	1.5	1.0	2.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.444	2014-09-23 17:12:45.444
+5773	Latavius Murray	2201	RB	OAK	0.8	0.0	1.5	1.4	0.0	2.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.448	2014-09-23 17:12:45.448
+5774	Joseph Randle	2157	RB	DAL	1.0	0.1	1.47	1.4	0.1	2.47	Concussion		Questionable	2014-09-23	4	2014	2014-09-23 17:12:45.452	2014-09-23 17:12:45.452
+5775	Silas Redd	2476	RB	WAS	1.0	0.0	1.93	1.4	0.0	2.93	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.457	2014-09-23 17:12:45.457
+5776	Travaris Cadet	1974	RB	NO	0.8	0.0	2.84	1.3	0.0	3.84	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.461	2014-09-23 17:12:45.461
+5777	Tony Fiammetta	801	RB	CHI	0.7	0.0	1.68	1.3	0.0	2.68	Hamstring		Left	2014-09-23	4	2014	2014-09-23 17:12:45.465	2014-09-23 17:12:45.465
+5778	John Kuhn	220	RB	GB	0.7	0.0	1.7	1.2	0.0	2.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.469	2014-09-23 17:12:45.469
+5779	Erik Lorig	1984	RB	NO	0.8	0.0	1.95	1.1	0.0	2.95	Ankle		Out	2014-09-23	4	2014	2014-09-23 17:12:45.473	2014-09-23 17:12:45.473
+5780	Bryce Brown	1802	RB	BUF	0.7	0.0	2.0	1.1	0.0	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.477	2014-09-23 17:12:45.477
+5781	Will Ta'ufo'ou	939	RB	JAC	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.481	2014-09-23 17:12:45.481
+5782	Bruce Miller	1420	RB	SF	0.5	0.0	1.2	1.0	0.0	2.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.485	2014-09-23 17:12:45.485
+5783	Patrick DiMarco	1720	RB	ATL	0.0	0.0	0.1	1.0	1.0	1.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.489	2014-09-23 17:12:45.489
+5784	Will Johnson	1887	RB	PIT	0.5	0.0	1.29	0.9	0.0	2.29	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.493	2014-09-23 17:12:45.493
+5785	Orleans Darkwa	2434	RB	MIA	0.4	0.0	0.9	0.8	0.0	1.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.497	2014-09-23 17:12:45.497
+5786	Peyton Hillis	201	RB	NYG	0.6	0.0	1.33	0.8	0.0	1.33	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.501	2014-09-23 17:12:45.501
+5787	LaMichael James	1839	RB	SF	0.3	0.0	0.6	0.7	0.0	1.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.505	2014-09-23 17:12:45.505
+5788	DuJuan Harris	1511	RB	GB	0.1	0.0	0.3	0.7	0.3	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.509	2014-09-23 17:12:45.509
+5789	Foswhitt Whittaker	2214	RB	CAR	0.2	0.0	0.7	0.6	0.0	1.7	Thigh		Doubtful	2014-09-23	4	2014	2014-09-23 17:12:45.514	2014-09-23 17:12:45.514
+5790	Jed Collins	151	RB	DET	0.0	0.0	0.0	0.6	0.0	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.518	2014-09-23 17:12:45.518
+5791	Kyle Juszczyk	2265	RB	BAL	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.522	2014-09-23 17:12:45.522
+5792	Jorvorskie Lane	2083	RB	TB	0.0	0.0	0.1	0.5	0.0	1.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.526	2014-09-23 17:12:45.526
+5793	Leon Washington	304	RB	TEN	0.2	0.0	0.6	0.5	0.0	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.53	2014-09-23 17:12:45.53
+5794	Joe Banyard	1944	RB	MIN	0.4	0.0	1.37	0.4	0.0	1.37	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.534	2014-09-23 17:12:45.534
+5795	Jackie Battle	123	RB	TEN	0.4	0.0	1.28	0.4	0.0	1.28	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.538	2014-09-23 17:12:45.538
+5796	Storm Johnson	2631	RB	JAC	0.2	0.0	0.5	0.2	0.0	0.5	Ankle		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.542	2014-09-23 17:12:45.542
+5797	James White	2444	RB	NE	0.2	0.0	0.6	0.2	0.0	0.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.546	2014-09-23 17:12:45.546
+5798	Ronnie Brown	134	RB	HOU	0.2	0.0	0.5	0.2	0.0	0.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.55	2014-09-23 17:12:45.55
+5799	Theo Riddick	2305	RB	DET	0.2	0.0	0.6	0.2	0.0	0.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.554	2014-09-23 17:12:45.554
+5800	Daniel Herron	1869	RB	IND	0.1	0.0	0.2	0.1	0.0	0.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.558	2014-09-23 17:12:45.558
+5641	Chargers	1054	DST	SD	6.9	1.0	12.0	6.9	1.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9866	2014-09-22 15:30:00.9866
+5642	Rams	1067	DST	STL	6.6	4.0	12.0	6.6	4.0	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9896	2014-09-22 15:30:00.9896
+5643	Packers	1050	DST	GB	6.5	2.0	9.0	6.5	2.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9936	2014-09-22 15:30:00.9936
+5644	Lions	1062	DST	DET	6.5	2.9	9.0	6.5	2.9	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9966	2014-09-22 15:30:00.9966
+5645	Bills	1047	DST	BUF	6.4	4.16	12.0	6.4	4.16	12.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:00.9996	2014-09-22 15:30:00.9996
+5646	Falcons	1046	DST	ATL	6.3	4.0	10.0	6.3	4.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0046	2014-09-22 15:30:01.0046
+5647	Vikings	1040	DST	MIN	6.1	0.0	10.0	6.1	0.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0086	2014-09-22 15:30:01.0086
+5648	Redskins	1058	DST	WAS	6.0	3.0	10.0	6.0	3.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0116	2014-09-22 15:30:01.0116
+5649	Steelers	1037	DST	PIT	6.0	2.0	9.0	6.0	2.0	9.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0146	2014-09-22 15:30:01.0146
+5650	Dolphins	1053	DST	MIA	5.9	3.0	10.0	5.9	3.0	10.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0176	2014-09-22 15:30:01.0176
+5651	Cowboys	1039	DST	DAL	5.9	2.0	11.0	5.9	2.0	11.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0206	2014-09-22 15:30:01.0206
+5652	Titans	1044	DST	TEN	5.8	4.0	8.0	5.8	4.0	8.0	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0236	2014-09-22 15:30:01.0236
+5653	Jets	1042	DST	NYJ	5.7	3.0	9.54	5.7	3.0	9.54	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0276	2014-09-22 15:30:01.0276
+5654	Jaguars	1052	DST	JAC	4.6	0.0	7.52	4.6	0.0	7.52	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0306	2014-09-22 15:30:01.0306
+5655	Raiders	1066	DST	OAK	4.4	1.0	7.03	4.4	1.0	7.03	\N	\N	\N	\N	3	2014	2014-09-22 15:30:01.0376	2014-09-22 15:30:01.0376
+5801	Senorise Perry	2581	RB	CHI	0.1	0.0	0.3	0.1	0.0	0.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.565	2014-09-23 17:12:45.565
+5802	Stanley Havili	1412	RB	IND	0.0	0.0	0.0	0.0	0.0	0.0			Out	2014-08-27	4	2014	2014-09-23 17:12:45.569	2014-09-23 17:12:45.569
+5803	Jerome Felton	173	RB	MIN	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.573	2014-09-23 17:12:45.573
+5804	Tyler Clutts	1380	RB	DAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.577	2014-09-23 17:12:45.577
+5805	Vick Ballard	1933	RB	IND	0.0	0.0	0.0	0.0	0.0	0.0	Achilles		Out	2014-08-30	4	2014	2014-09-23 17:12:45.581	2014-09-23 17:12:45.581
+5806	Michael Bush	138	RB	CHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.585	2014-09-23 17:12:45.585
+5807	Jamize Olawale	1990	RB	OAK	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.589	2014-09-23 17:12:45.589
+5808	Montell Owens	252	RB	DET	0.0	0.0	0.0	0.0	0.0	0.0	Hamstring		Doubtful	2014-09-23	4	2014	2014-09-23 17:12:45.593	2014-09-23 17:12:45.593
+5809	Adrian Peterson	259	RB	MIN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.597	2014-09-23 17:12:45.597
+5810	Chris Polk	1996	RB	PHI	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.601	2014-09-23 17:12:45.601
+5811	Henry Hynoski	1798	RB	NYG	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.605	2014-09-23 17:12:45.605
+5812	Marion Grice	2512	RB	SD	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.609	2014-09-23 17:12:45.609
+5813	Will Tukuafu	2238	RB	SF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.613	2014-09-23 17:12:45.613
+5814	Frank Summers	818	RB	BUF	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.617	2014-09-23 17:12:45.617
+5815	Kenjon Barner	2378	RB	CAR	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:45.621	2014-09-23 17:12:45.621
+5816	Mike Tolbert	294	RB	CAR	0.0	0.0	2.2	0.0	0.0	3.2	Chest		Probable	2014-09-23	4	2014	2014-09-23 17:12:45.625	2014-09-23 17:12:45.625
+5817	Calvin Johnson	454	WR	DET	15.4	13.72	18.0	22.2	19.72	25.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.26	2014-09-23 17:12:46.26
+5818	Julio Jones	1446	WR	ATL	14.3	12.37	18.8	20.7	19.3	26.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.266	2014-09-23 17:12:46.266
+5819	Jordy Nelson	502	WR	GB	13.3	12.05	17.4	19.6	18.05	25.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.27	2014-09-23 17:12:46.27
+5820	Brandon Marshall	480	WR	CHI	13.5	12.0	15.0	19.5	18.0	22.0	Ankle			2014-09-23	4	2014	2014-09-23 17:12:46.274	2014-09-23 17:12:46.274
+5821	Antonio Brown	1142	WR	PIT	13.0	11.9	17.0	19.2	17.9	23.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.278	2014-09-23 17:12:46.278
+5822	Dez Bryant	1143	WR	DAL	12.3	10.62	17.0	19.0	16.6	25.0	Shoulder		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.282	2014-09-23 17:12:46.282
+5823	Andre Johnson	452	WR	HOU	10.9	7.77	14.5	17.5	12.77	22.0	Ankle		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.286	2014-09-23 17:12:46.286
+5824	Julian Edelman	832	WR	NE	10.7	8.9	16.0	17.0	15.9	24.0	Back		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.291	2014-09-23 17:12:46.291
+5825	Alshon Jeffery	1895	WR	CHI	11.0	8.6	13.0	16.1	14.49	19.0	Hamstring		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.295	2014-09-23 17:12:46.295
+5826	Mike Wallace	863	WR	MIA	10.6	9.6	15.6	15.8	14.6	20.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.299	2014-09-23 17:12:46.299
+5827	Pierre Garcon	404	WR	WAS	10.0	8.8	14.8	15.7	13.8	22.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.303	2014-09-23 17:12:46.303
+5828	Randall Cobb	1437	WR	GB	10.8	7.7	14.0	15.6	9.7	19.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.307	2014-09-23 17:12:46.307
+5829	Jeremy Maclin	847	WR	PHI	10.5	9.55	14.0	15.6	14.8	19.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.311	2014-09-23 17:12:46.311
+5830	Brandin Cooks	2669	WR	NO	10.3	7.84	13.0	15.6	11.84	19.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.315	2014-09-23 17:12:46.315
+5831	Vincent Jackson	444	WR	TB	10.7	8.49	15.2	15.5	12.49	20.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.319	2014-09-23 17:12:46.319
+5832	Cecil Shorts III	1457	WR	JAC	9.2	6.0	12.9	14.8	10.28	17.9	Hamstring		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.323	2014-09-23 17:12:46.323
+5833	Michael Crabtree	830	WR	SF	9.5	8.5	14.0	14.7	12.7	20.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.327	2014-09-23 17:12:46.327
+5834	Roddy White	578	WR	ATL	9.4	6.6	14.7	14.6	12.6	20.7	Hamstring		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.331	2014-09-23 17:12:46.331
+5835	Victor Cruz	1262	WR	NYG	9.5	8.1	15.7	14.6	13.1	21.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.335	2014-09-23 17:12:46.335
+5836	Steve Smith	541	WR	BAL	8.6	7.53	14.0	13.8	11.53	21.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.339	2014-09-23 17:12:46.339
+5837	Cordarrelle Patterson	2328	WR	MIN	9.4	7.99	16.9	13.7	12.7	22.9	Chest		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.343	2014-09-23 17:12:46.343
+5838	Keenan Allen	2215	WR	SD	9.4	6.6	13.6	13.7	11.6	18.6	Groin		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.347	2014-09-23 17:12:46.347
+5839	DeSean Jackson	441	WR	WAS	8.7	5.4	13.8	13.5	7.4	18.8	Shoulder		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.352	2014-09-23 17:12:46.352
+5840	Greg Jennings	451	WR	MIN	8.4	5.86	12.0	13.2	9.86	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.356	2014-09-23 17:12:46.356
+5841	Marques Colston	371	WR	NO	9.0	6.6	15.5	13.2	11.6	21.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.36	2014-09-23 17:12:46.36
+5842	Kelvin Benjamin	2663	WR	CAR	8.9	8.0	13.0	13.1	12.6	18.0	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.364	2014-09-23 17:12:46.364
+5843	Kendall Wright	1961	WR	TEN	7.8	5.0	11.9	12.9	10.0	16.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.368	2014-09-23 17:12:46.368
+5844	Golden Tate	1170	WR	DET	7.9	7.0	12.2	12.8	11.14	17.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.372	2014-09-23 17:12:46.372
+5845	T.Y. Hilton	1937	WR	IND	8.1	0.0	12.0	12.6	0.0	16.7	Groin		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.376	2014-09-23 17:12:46.376
+5846	DeAndre Hopkins	2338	WR	HOU	7.9	4.5	9.4	12.5	6.5	13.4	Illness		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.381	2014-09-23 17:12:46.381
+5847	Reggie Wayne	573	WR	IND	8.1	6.8	13.0	12.4	10.8	18.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.385	2014-09-23 17:12:46.385
+5848	Sammy Watkins	2432	WR	BUF	8.0	5.0	11.7	12.2	9.0	17.0	Ribs		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.389	2014-09-23 17:12:46.389
+5849	Eric Decker	1146	WR	NYJ	7.7	0.0	12.7	12.0	0.0	17.7	Hamstring		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.393	2014-09-23 17:12:46.393
+5850	Anquan Boldin	341	WR	SF	7.2	5.0	11.6	12.0	10.0	15.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.398	2014-09-23 17:12:46.398
+5851	Allen Robinson	2635	WR	JAC	7.1	1.8	8.0	11.9	2.8	15.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.401	2014-09-23 17:12:46.401
+5852	Terrance Williams	2160	WR	DAL	7.9	5.57	10.9	11.7	8.57	14.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.405	2014-09-23 17:12:46.405
+5853	Justin Hunter	2361	WR	TEN	7.8	4.0	11.8	11.6	7.0	15.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.409	2014-09-23 17:12:46.409
+5854	Allen Hurns	2633	WR	JAC	7.6	6.0	8.0	11.4	9.0	12.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.413	2014-09-23 17:12:46.413
+5855	James Jones	460	WR	OAK	7.3	6.6	13.6	11.4	10.6	18.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.417	2014-09-23 17:12:46.417
+5856	Rueben Randle	1799	WR	NYG	7.5	2.0	9.4	11.3	5.0	13.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.421	2014-09-23 17:12:46.421
+5857	Torrey Smith	1458	WR	BAL	7.1	4.0	9.3	11.1	8.0	12.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.425	2014-09-23 17:12:46.425
+5858	Mike Evans	2677	WR	TB	7.0	4.0	11.3	11.1	9.0	16.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.429	2014-09-23 17:12:46.429
+5859	Harry Douglas	384	WR	ATL	6.5	0.0	10.7	10.9	0.0	14.7	Foot		Left	2014-09-23	4	2014	2014-09-23 17:12:46.433	2014-09-23 17:12:46.433
+5860	Dwayne Bowe	343	WR	KC	6.8	2.0	11.7	10.8	4.0	15.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.437	2014-09-23 17:12:46.437
+5861	Markus Wheaton	2293	WR	PIT	6.9	4.33	10.3	10.7	7.33	14.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.441	2014-09-23 17:12:46.441
+5862	Jeremy Kerley	1447	WR	NYJ	6.0	3.0	8.8	10.0	7.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.445	2014-09-23 17:12:46.445
+5863	Nate Washington	571	WR	TEN	6.2	2.0	10.0	9.9	4.0	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.449	2014-09-23 17:12:46.449
+5864	Malcom Floyd	395	WR	SD	6.8	3.0	11.5	9.8	5.0	15.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.462	2014-09-23 17:12:46.462
+5865	Eddie Royal	526	WR	SD	6.3	3.6	11.7	9.5	6.6	16.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.466	2014-09-23 17:12:46.466
+5866	Denarius Moore	1450	WR	OAK	5.7	2.0	6.8	9.2	3.3	10.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.47	2014-09-23 17:12:46.47
+5867	Riley Cooper	1145	WR	PHI	5.9	2.0	8.4	9.1	5.0	12.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.475	2014-09-23 17:12:46.475
+5868	Brian Hartline	839	WR	MIA	5.7	3.0	9.7	9.0	7.0	13.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.48	2014-09-23 17:12:46.48
+5869	Robert Woods	2122	WR	BUF	5.9	2.92	10.8	8.8	4.92	13.8	Ankle		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.484	2014-09-23 17:12:46.484
+5870	Kenny Stills	2388	WR	NO	5.9	2.0	10.3	8.8	5.0	13.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.489	2014-09-23 17:12:46.489
+5871	Stevie Johnson	456	WR	SF	5.1	3.51	6.7	8.7	5.51	10.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.493	2014-09-23 17:12:46.493
+5872	Jordan Matthews	2471	WR	PHI	5.1	2.58	10.5	8.5	4.58	17.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.497	2014-09-23 17:12:46.497
+5873	Andre Holmes	1592	WR	OAK	5.0	1.0	7.1	7.8	2.0	10.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.501	2014-09-23 17:12:46.501
+5874	Davante Adams	2596	WR	GB	4.9	1.0	7.5	7.7	2.48	10.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.505	2014-09-23 17:12:46.505
+5875	Preston Parker	1292	WR	NYG	4.7	1.8	5.2	7.6	2.8	8.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.509	2014-09-23 17:12:46.509
+5876	Hakeem Nicks	853	WR	IND	5.1	2.0	11.2	7.5	5.0	14.2	Illness		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.513	2014-09-23 17:12:46.513
+5877	Donnie Avery	330	WR	KC	4.3	2.0	8.7	7.4	4.0	12.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.517	2014-09-23 17:12:46.517
+5878	Andre Roberts	1166	WR	WAS	4.3	2.8	9.5	7.2	5.4	13.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.521	2014-09-23 17:12:46.521
+5879	Devin Hester	425	WR	ATL	4.7	3.0	7.0	7.1	5.75	10.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.525	2014-09-23 17:12:46.525
+5880	Jerricho Cotchery	373	WR	CAR	4.5	0.0	9.1	7.1	0.0	13.1	Thigh		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.529	2014-09-23 17:12:46.529
+5881	Brandon LaFell	1159	WR	NE	4.3	0.1	5.2	6.8	0.1	8.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.534	2014-09-23 17:12:46.534
+5882	Brandon Gibson	836	WR	MIA	3.9	1.0	8.0	6.7	3.0	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.538	2014-09-23 17:12:46.538
+5883	Jarius Wright	1923	WR	MIN	4.0	1.0	4.6	5.9	2.0	6.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.542	2014-09-23 17:12:46.542
+5884	Lance Moore	493	WR	PIT	3.9	0.0	10.1	5.9	0.0	14.1	Groin		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.546	2014-09-23 17:12:46.546
+5885	Santonio Holmes	431	WR	CHI	3.2	2.0	4.0	5.7	4.0	7.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.585	2014-09-23 17:12:46.585
+5886	Jarrett Boykin	2052	WR	GB	3.7	1.0	4.2	5.6	2.8	6.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.589	2014-09-23 17:12:46.589
+5887	Danny Amendola	323	WR	NE	3.3	1.0	7.3	5.5	2.0	10.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.593	2014-09-23 17:12:46.593
+5888	Mike Williams	1178	WR	BUF	3.3	1.0	8.6	5.4	2.8	11.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.597	2014-09-23 17:12:46.597
+5889	Jason Avant	329	WR	CAR	3.0	2.0	6.8	5.2	3.31	9.8	Thigh		Questionable	2014-09-23	4	2014	2014-09-23 17:12:46.601	2014-09-23 17:12:46.601
+5890	Cole Beasley	1787	WR	DAL	2.9	1.3	6.5	5.1	2.3	9.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.605	2014-09-23 17:12:46.605
+5891	David Nelson	1290	WR	NYJ	2.8	1.0	5.1	4.9	2.0	8.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.61	2014-09-23 17:12:46.61
+5892	Jarvis Landry	2437	WR	MIA	2.5	1.0	3.2	4.9	3.0	5.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.614	2014-09-23 17:12:46.614
+5893	Marlon Brown	2266	WR	BAL	2.8	1.0	4.8	4.8	2.0	6.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.618	2014-09-23 17:12:46.618
+5894	Rod Streater	1829	WR	OAK	2.7	0.0	5.5	4.7	0.0	9.5	Broken Foot			2014-09-23	4	2014	2014-09-23 17:12:46.622	2014-09-23 17:12:46.622
+5895	Jacoby Jones	459	WR	BAL	2.7	1.0	5.0	4.4	3.0	7.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.626	2014-09-23 17:12:46.626
+5896	Denard Robinson	2353	WR	JAC	2.7	-0.4	8.0	4.2	0.6	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.63	2014-09-23 17:12:46.63
+5897	Kenbrell Thompkins	2142	WR	NE	2.5	1.0	5.8	4.2	2.0	8.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.634	2014-09-23 17:12:46.634
+5898	Donte Moncrief	2622	WR	IND	2.1	0.8	4.0	3.9	1.8	7.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.638	2014-09-23 17:12:46.638
+5899	Junior Hemingway	1820	WR	KC	2.4	1.4	4.8	3.8	2.4	6.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.642	2014-09-23 17:12:46.642
+5900	Odell Beckham Jr.	2465	WR	NYG	2.5	0.0	8.4	3.7	0.0	11.4	Hamstring		Out	2014-09-23	4	2014	2014-09-23 17:12:46.646	2014-09-23 17:12:46.646
+5901	Joseph Morgan	1618	WR	NO	2.7	0.0	6.3	3.6	0.0	8.3	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.65	2014-09-23 17:12:46.65
+5902	Philly Brown	2664	WR	CAR	1.9	0.0	3.0	3.6	0.0	6.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.654	2014-09-23 17:12:46.654
+5903	Greg Salas	1455	WR	NYJ	1.5	0.9	2.0	3.3	1.9	5.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.658	2014-09-23 17:12:46.658
+5904	Chris Owusu	1842	WR	TB	1.8	0.0	5.5	3.3	1.0	8.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.663	2014-09-23 17:12:46.663
+5905	Jeremy Ross	1629	WR	DET	1.5	1.0	2.0	3.2	2.3	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.667	2014-09-23 17:12:46.667
+5906	Aaron Dobson	2139	WR	NE	1.9	0.9	4.0	3.1	1.9	6.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.671	2014-09-23 17:12:46.671
+5907	Damaris Johnson	2000	WR	HOU	1.7	1.0	2.3	3.0	2.0	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.675	2014-09-23 17:12:46.675
+5908	Robert Meachem	490	WR	NO	1.6	0.4	3.8	2.9	1.4	5.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.679	2014-09-23 17:12:46.679
+5909	Eric Weems	575	WR	ATL	1.2	0.1	2.0	2.9	0.1	5.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.683	2014-09-23 17:12:46.683
+5910	A.J. Jenkins	1841	WR	KC	1.6	0.0	2.6	2.9	1.0	4.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.687	2014-09-23 17:12:46.687
+5911	Robert Herron	2678	WR	TB	1.2	1.0	1.5	2.8	2.5	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.691	2014-09-23 17:12:46.691
+5912	Justin Brown	2291	WR	PIT	1.3	0.0	2.84	2.7	0.0	4.84	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.696	2014-09-23 17:12:46.696
+5913	Keshawn Martin	1927	WR	HOU	1.2	0.0	2.7	2.5	1.0	4.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.7	2014-09-23 17:12:46.7
+5914	DeVier Posey	1928	WR	HOU	1.5	0.0	3.5	2.4	0.0	5.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.704	2014-09-23 17:12:46.704
+5915	Kevin Ogletree	987	WR	DET	1.5	0.0	3.4	2.3	0.0	5.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.708	2014-09-23 17:12:46.708
+5916	Derek Hagan	410	WR	TEN	0.8	-1.0	2.62	2.2	0.0	4.62	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.712	2014-09-23 17:12:46.712
+5917	Devin Street	2460	WR	DAL	0.9	-1.0	2.81	2.2	0.0	4.81	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.716	2014-09-23 17:12:46.716
+5918	Marquise Goodwin	2118	WR	BUF	1.4	0.0	2.6	2.1	0.0	3.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.72	2014-09-23 17:12:46.72
+5919	Josh Morgan	495	WR	CHI	1.0	0.0	2.0	2.0	0.0	3.3	Groin		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.724	2014-09-23 17:12:46.724
+5920	Martavis Bryant	2575	WR	PIT	1.2	0.0	2.3	2.0	0.0	4.3	Shoulder		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.728	2014-09-23 17:12:46.728
+5921	Darrius Heyward-Bey	841	WR	PIT	0.9	0.0	2.3	1.9	0.0	4.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.732	2014-09-23 17:12:46.732
+5922	Rishard Matthews	1765	WR	MIA	0.9	0.0	1.5	1.9	1.0	2.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.736	2014-09-23 17:12:46.736
+5923	Mike Brown	1948	WR	JAC	0.5	0.0	1.0	1.8	1.5	2.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.74	2014-09-23 17:12:46.74
+5924	Nick Toon	1978	WR	NO	1.2	0.0	2.1	1.8	0.0	3.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.744	2014-09-23 17:12:46.744
+5925	Ryan Grant	2479	WR	WAS	0.7	0.0	1.6	1.7	1.0	2.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.748	2014-09-23 17:12:46.748
+5926	Quinton Patton	2241	WR	SF	1.0	0.0	2.6	1.6	0.0	3.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.752	2014-09-23 17:12:46.752
+5927	Bruce Ellington	2532	WR	SF	0.9	0.0	2.5	1.6	0.0	4.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.756	2014-09-23 17:12:46.756
+5928	Brenton Bersin	2068	WR	CAR	0.8	0.0	1.6	1.6	0.0	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.76	2014-09-23 17:12:46.76
+5929	Aldrick Robinson	1454	WR	WAS	1.0	0.0	1.9	1.6	0.0	2.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.764	2014-09-23 17:12:46.764
+5930	Dwayne Harris	1443	WR	DAL	1.0	0.0	2.4	1.5	0.0	3.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.768	2014-09-23 17:12:46.768
+5931	Jeff Janis	2597	WR	GB	0.7	0.0	2.0	1.4	0.0	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.772	2014-09-23 17:12:46.772
+5932	Jeff Maehl	1610	WR	PHI	0.8	0.0	2.28	1.2	0.0	3.28	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.776	2014-09-23 17:12:46.776
+5933	Brad Smith	538	WR	PHI	0.7	0.0	1.6	1.1	0.0	2.6	Groin		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.78	2014-09-23 17:12:46.78
+5934	Ryan Broyles	1901	WR	DET	0.3	0.0	0.8	1.0	0.0	1.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.784	2014-09-23 17:12:46.784
+5935	Courtney Roby	525	WR	ATL	0.4	0.0	1.0	1.0	0.0	2.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.788	2014-09-23 17:12:46.788
+5936	Brandon Lloyd	472	WR	SF	0.5	0.0	1.8	0.8	0.0	2.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.792	2014-09-23 17:12:46.792
+5937	Michael Campanaro	2551	WR	BAL	0.5	0.0	1.3	0.8	0.0	2.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.796	2014-09-23 17:12:46.796
+5938	Adam Thielen	2330	WR	MIN	0.3	0.0	0.7	0.7	0.0	1.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.8	2014-09-23 17:12:46.8
+5939	Dontrelle Inman	1594	WR	SD	0.1	0.0	0.3	0.6	0.0	1.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.804	2014-09-23 17:12:46.804
+5940	Seyi Ajirotutu	1338	WR	SD	0.3	0.0	1.1	0.6	0.0	2.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.808	2014-09-23 17:12:46.808
+5941	Griff Whalen	1939	WR	IND	0.2	0.0	0.4	0.6	0.0	1.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.812	2014-09-23 17:12:46.812
+5942	Chris Hogan	1590	WR	BUF	0.2	0.0	0.4	0.6	0.0	1.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.816	2014-09-23 17:12:46.816
+5943	Santana Moss	497	WR	WAS	0.3	0.0	1.1	0.6	0.0	2.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.82	2014-09-23 17:12:46.82
+5944	Russell Shepard	2172	WR	TB	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.824	2014-09-23 17:12:46.824
+5945	Corey Fuller	2304	WR	DET	0.0	0.0	0.0	0.6	0.0	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.828	2014-09-23 17:12:46.828
+5946	Micheal Spurlock	543	WR	CHI	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.832	2014-09-23 17:12:46.832
+5947	Kamar Aiken	1547	WR	BAL	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.836	2014-09-23 17:12:46.836
+5948	Brice Butler	2203	WR	OAK	0.1	0.0	0.2	0.3	0.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.84	2014-09-23 17:12:46.84
+5949	Matthew Slater	537	WR	NE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.844	2014-09-23 17:12:46.844
+5950	Jared Abbrederis	2595	WR	GB	0.0	0.0	0.0	0.0	0.0	0.0	Knee		Out	2014-09-02	4	2014	2014-09-23 17:12:46.848	2014-09-23 17:12:46.848
+5951	Jonathan Baldwin	1434	WR	SF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.852	2014-09-23 17:12:46.852
+5952	Plaxico Burress	356	WR	PIT	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.856	2014-09-23 17:12:46.856
+5953	Arrelious Benn	1140	WR	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.86	2014-09-23 17:12:46.86
+5954	Ramses Barden	823	WR	JAC	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.864	2014-09-23 17:12:46.864
+5955	Marqise Lee	2634	WR	JAC	0.0	0.0	9.8	0.0	0.0	13.8	Hamstring		Out	2014-09-23	4	2014	2014-09-23 17:12:46.868	2014-09-23 17:12:46.868
+5956	Rodney Smith	2329	WR	MIN	0.0	0.0	0.0	0.0	0.0	0.0	Hamstring		Probable	2014-09-23	4	2014	2014-09-23 17:12:46.872	2014-09-23 17:12:46.872
+5957	Frankie Hammond Jr.	2195	WR	KC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.876	2014-09-23 17:12:46.876
+5958	Josh Boyce	2138	WR	NE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.88	2014-09-23 17:12:46.88
+5959	Da'Rick Rogers	2121	WR	IND	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.884	2014-09-23 17:12:46.884
+5960	Deonte Thompson	2037	WR	BAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.888	2014-09-23 17:12:46.888
+5961	Jalen Saunders	2454	WR	NYJ	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.892	2014-09-23 17:12:46.892
+5962	Justin Blackmon	1947	WR	JAC	0.0	0.0	0.0	0.0	0.0	0.0	Suspension		Suspend	2014-09-23	4	2014	2014-09-23 17:12:46.896	2014-09-23 17:12:46.896
+5963	Kyle Williams	1176	WR	KC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.901	2014-09-23 17:12:46.901
+5964	Saalim Hakim	1790	WR	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.905	2014-09-23 17:12:46.905
+5965	Michael Preston	1626	WR	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.909	2014-09-23 17:12:46.909
+5966	Albert Wilson	2501	WR	KC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.913	2014-09-23 17:12:46.913
+5967	Corey Washington	2526	WR	NYG	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.917	2014-09-23 17:12:46.917
+5968	Josh Huff	2470	WR	PHI	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:46.921	2014-09-23 17:12:46.921
+5969	Jimmy Graham	1187	TE	NO	12.1	11.09	15.6	18.3	17.09	24.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.39	2014-09-23 17:12:47.39
+5970	Rob Gronkowski	1189	TE	NE	10.3	8.69	13.2	15.2	13.69	19.2	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.395	2014-09-23 17:12:47.395
+5971	Jason Witten	733	TE	DAL	8.2	3.0	12.0	13.1	7.0	17.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.399	2014-09-23 17:12:47.399
+5972	Larry Donnell	2095	TE	NYG	8.1	4.59	11.0	12.9	7.59	16.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.403	2014-09-23 17:12:47.403
+5973	Greg Olsen	684	TE	CAR	7.7	6.0	10.7	12.6	12.0	15.0	Calf		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.407	2014-09-23 17:12:47.407
+5974	Antonio Gates	643	TE	SD	8.5	5.8	13.0	12.5	8.8	18.0	Hamstring		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.412	2014-09-23 17:12:47.412
+5975	Delanie Walker	564	TE	TEN	8.2	6.45	13.0	12.4	10.45	18.0	Shoulder		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.416	2014-09-23 17:12:47.416
+5976	Martellus Bennett	602	TE	CHI	8.0	4.0	11.9	12.4	10.0	17.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.42	2014-09-23 17:12:47.42
+5977	Zach Ertz	2173	TE	PHI	6.4	4.0	11.6	9.7	7.0	16.6	Knee		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.424	2014-09-23 17:12:47.424
+5978	Jordan Reed	2181	TE	WAS	5.9	0.0	11.1	9.6	0.0	15.1	Hamstring		Out	2014-09-23	4	2014	2014-09-23 17:12:47.429	2014-09-23 17:12:47.429
+5979	Travis Kelce	2198	TE	KC	6.4	3.2	10.7	9.5	5.2	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.433	2014-09-23 17:12:47.433
+5980	Heath Miller	675	TE	PIT	5.7	3.0	9.1	9.5	6.4	13.1	Not Injury Related		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.437	2014-09-23 17:12:47.437
+5981	Vernon Davis	626	TE	SF	6.5	0.0	10.9	9.3	0.0	14.9	Ankle, Knee		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.441	2014-09-23 17:12:47.441
+5982	Charles Clay	1408	TE	MIA	5.3	3.0	9.3	8.6	6.51	13.3	Knee		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.446	2014-09-23 17:12:47.446
+5983	Owen Daniels	622	TE	BAL	5.1	3.0	9.7	8.3	7.0	13.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.45	2014-09-23 17:12:47.45
+5984	Coby Fleener	1941	TE	IND	5.0	2.0	9.5	7.4	4.0	13.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.454	2014-09-23 17:12:47.454
+5985	Garrett Graham	1186	TE	HOU	4.0	3.0	7.6	7.1	6.0	11.6	Ankle		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.458	2014-09-23 17:12:47.458
+5986	Mychal Rivera	2210	TE	OAK	4.1	2.0	6.5	7.1	5.0	9.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.462	2014-09-23 17:12:47.462
+5987	Levine Toilolo	2375	TE	ATL	3.9	1.6	7.7	6.7	3.6	11.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.466	2014-09-23 17:12:47.466
+5988	Austin Seferian-Jenkins	2682	TE	TB	3.8	0.0	4.6	6.3	0.0	7.6	Ankle		Out	2014-09-23	4	2014	2014-09-23 17:12:47.476	2014-09-23 17:12:47.476
+5989	Dwayne Allen	1940	TE	IND	4.1	2.0	9.0	6.1	4.0	12.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.481	2014-09-23 17:12:47.481
+5990	Scott Chandler	613	TE	BUF	3.6	2.0	5.9	6.0	4.0	10.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.486	2014-09-23 17:12:47.486
+5991	Anthony Fasano	634	TE	KC	3.8	2.0	4.29	5.9	4.0	7.29	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.491	2014-09-23 17:12:47.491
+5992	Jeff Cumberland	1313	TE	NYJ	3.6	1.8	4.9	5.8	3.8	7.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.495	2014-09-23 17:12:47.495
+5993	Eric Ebron	2587	TE	DET	3.7	1.0	6.6	5.8	2.0	9.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.499	2014-09-23 17:12:47.499
+5994	Andrew Quarless	1200	TE	GB	3.5	1.88	6.5	5.6	2.88	9.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.504	2014-09-23 17:12:47.504
+5995	Brandon Myers	882	TE	TB	3.1	2.5	8.6	5.6	4.5	12.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.508	2014-09-23 17:12:47.508
+5996	Niles Paul	1451	TE	WAS	3.6	2.22	10.0	5.3	3.8	15.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.512	2014-09-23 17:12:47.512
+5997	Jace Amaro	2455	TE	NYJ	3.0	1.56	5.0	5.0	2.56	7.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.516	2014-09-23 17:12:47.516
+5998	Joseph Fauria	2307	TE	DET	2.6	0.2	3.2	4.4	1.2	4.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.52	2014-09-23 17:12:47.52
+5999	Brent Celek	612	TE	PHI	2.5	1.0	3.46	4.4	2.0	5.46	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.524	2014-09-23 17:12:47.524
+6000	Clay Harbor	1190	TE	JAC	2.6	0.0	6.2	4.4	0.0	9.2	Calf		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.528	2014-09-23 17:12:47.528
+6001	Brandon Pettigrew	888	TE	DET	2.5	0.0	6.4	4.4	1.0	9.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.532	2014-09-23 17:12:47.532
+6002	Ladarius Green	1833	TE	SD	2.9	2.4	5.0	4.2	3.4	7.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.537	2014-09-23 17:12:47.537
+6003	Rhett Ellison	1924	TE	MIN	2.2	0.7	2.4	4.1	1.7	5.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.541	2014-09-23 17:12:47.541
+6004	Tim Wright	2396	TE	NE	1.8	1.0	2.6	3.4	2.0	4.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.545	2014-09-23 17:12:47.545
+6005	Ed Dickson	1182	TE	CAR	1.4	0.0	2.5	2.7	1.0	3.9	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.549	2014-09-23 17:12:47.549
+6006	Harold Hoskins	2439	TE	MIA	2.7	0.0	9.0	2.7	0.0	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.553	2014-09-23 17:12:47.553
+6007	Daniel Fells	635	TE	NYG	1.5	0.0	2.5	2.5	1.0	3.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.557	2014-09-23 17:12:47.557
+6008	Gavin Escobar	2161	TE	DAL	1.3	0.0	3.8	2.5	1.0	5.8	Knee		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.561	2014-09-23 17:12:47.561
+6009	Benjamin Watson	730	TE	NO	1.3	0.0	4.2	2.3	0.0	6.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.565	2014-09-23 17:12:47.565
+6010	Ryan Griffin	2342	TE	HOU	1.1	0.0	1.8	2.1	0.0	3.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.569	2014-09-23 17:12:47.569
+6011	Logan Paulsen	1322	TE	WAS	0.8	0.6	1.0	2.1	1.6	3.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.573	2014-09-23 17:12:47.573
+6012	Dante Rosario	697	TE	CHI	0.9	0.0	1.5	1.9	1.0	2.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.577	2014-09-23 17:12:47.577
+6013	Derek Carrier	1825	TE	SF	1.0	0.0	2.0	1.9	0.0	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.581	2014-09-23 17:12:47.581
+6014	Josh Hill	2389	TE	NO	0.8	0.0	2.0	1.9	0.1	4.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.585	2014-09-23 17:12:47.585
+6015	David Ausberry	1433	TE	OAK	1.1	0.0	2.3	1.8	0.0	3.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.589	2014-09-23 17:12:47.589
+6016	Marcel Jensen	2636	TE	JAC	0.1	0.0	0.2	1.7	1.2	2.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.593	2014-09-23 17:12:47.593
+6017	Dion Sims	2133	TE	MIA	1.0	0.0	2.4	1.5	0.0	3.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.597	2014-09-23 17:12:47.597
+6018	Mickey Shuler	1201	TE	JAC	0.5	0.0	1.0	1.5	0.0	3.0	Heel		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.601	2014-09-23 17:12:47.601
+6019	Matt Spaeth	716	TE	PIT	0.8	0.0	1.96	1.4	0.0	2.96	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.605	2014-09-23 17:12:47.605
+6020	Vance McDonald	2242	TE	SF	0.8	0.0	1.6	1.4	0.0	2.6	Knee		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.609	2014-09-23 17:12:47.609
+6021	Bear Pascoe	887	TE	ATL	0.7	0.0	1.72	1.3	0.0	2.72	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.614	2014-09-23 17:12:47.614
+6022	Craig Stevens	718	TE	TEN	0.6	0.0	1.49	1.3	0.1	2.49	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.618	2014-09-23 17:12:47.618
+6023	C.J. Fiedorowicz	2616	TE	HOU	0.8	0.0	1.58	1.3	0.0	2.58	Foot		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.622	2014-09-23 17:12:47.622
+6024	Lee Smith	1468	TE	BUF	0.5	0.0	1.05	1.2	0.0	2.05	Toe		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.626	2014-09-23 17:12:47.626
+6025	Richard Rodgers	2600	TE	GB	0.7	0.0	1.84	1.1	0.0	2.84	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.63	2014-09-23 17:12:47.63
+6026	Jack Doyle	2364	TE	IND	0.1	0.0	0.2	1.1	1.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.634	2014-09-23 17:12:47.634
+6027	Michael Palmer	1197	TE	PIT	0.7	0.0	1.84	1.1	0.0	2.84	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.638	2014-09-23 17:12:47.638
+6028	Taylor Thompson	1963	TE	TEN	0.3	0.0	1.0	1.0	0.0	2.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.642	2014-09-23 17:12:47.642
+6029	James Hanna	1794	TE	DAL	0.5	0.0	1.37	0.9	0.0	2.37	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.646	2014-09-23 17:12:47.646
+6030	Brandon Bostick	2080	TE	GB	0.4	0.0	1.4	0.7	0.0	2.4	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.65	2014-09-23 17:12:47.65
+6031	David Johnson	878	TE	SD	0.1	0.0	0.3	0.6	0.0	1.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.654	2014-09-23 17:12:47.654
+6032	Richie Brockel	1357	TE	CAR	0.0	0.0	0.1	0.6	0.1	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.658	2014-09-23 17:12:47.658
+6033	Brian Leonhardt	2209	TE	OAK	0.0	0.0	0.0	0.6	0.0	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.662	2014-09-23 17:12:47.662
+6034	Luke Stocker	1469	TE	TB	0.0	0.0	0.0	0.6	0.0	1.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.666	2014-09-23 17:12:47.666
+6035	Zach Sudfeld	2144	TE	NYJ	0.2	0.0	0.6	0.6	0.0	1.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.67	2014-09-23 17:12:47.67
+6036	Adrien Robinson	1800	TE	NYG	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.674	2014-09-23 17:12:47.674
+6037	Michael Hoomanawanui	1192	TE	NE	0.1	0.0	0.2	0.5	0.0	1.2	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.678	2014-09-23 17:12:47.678
+6038	James Casey	870	TE	PHI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.682	2014-09-23 17:12:47.682
+6039	Crockett Gillmore	2553	TE	BAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.686	2014-09-23 17:12:47.686
+6040	Kellen Winslow	732	TE	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.69	2014-09-23 17:12:47.69
+6041	Jacob Maxwell	2588	TE	DET	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.694	2014-09-23 17:12:47.694
+6042	Jordan Thompson	2589	TE	DET	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.698	2014-09-23 17:12:47.698
+6043	Alex Smith	712	TE	CIN	0.0	0.0	0.0	0.0	0.0	0.0	Biceps		Out	2014-09-16	4	2014	2014-09-23 17:12:47.702	2014-09-23 17:12:47.702
+6044	Gary Barnidge	600	TE	CLE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.706	2014-09-23 17:12:47.706
+6045	Billy Bajema	598	TE	BAL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.71	2014-09-23 17:12:47.71
+6046	D.J. Tialavea	2638	TE	JAC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.714	2014-09-23 17:12:47.714
+6047	Marcedes Lewis	668	TE	JAC	0.0	0.0	0.0	0.0	0.0	0.0			Out	2014-09-17	4	2014	2014-09-23 17:12:47.718	2014-09-23 17:12:47.718
+6048	Brandon Barden	1962	TE	JAC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.722	2014-09-23 17:12:47.722
+6049	Zach Miller	880	TE	CHI	0.0	0.0	0.0	0.0	0.0	0.0	Foot		Out	2014-08-15	4	2014	2014-09-23 17:12:47.726	2014-09-23 17:12:47.726
+6050	Kyle Miller	1667	TE	MIA	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.73	2014-09-23 17:12:47.73
+6051	Ryan Taylor	1470	TE	GB	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.734	2014-09-23 17:12:47.734
+6052	Chris Pantale	2152	TE	NYJ	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.738	2014-09-23 17:12:47.738
+6053	Kyle Rudolph	1467	TE	MIN	0.0	0.0	0.0	0.0	0.0	0.0	Abdomen		Probable	2014-09-23	4	2014	2014-09-23 17:12:47.742	2014-09-23 17:12:47.742
+6054	Richard Gordon	1462	TE	KC	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.747	2014-09-23 17:12:47.747
+6055	Jordan Cameron	1461	TE	CLE	0.0	0.0	0.0	0.0	0.0	0.0	Shoulder		Questionable	2014-09-23	4	2014	2014-09-23 17:12:47.751	2014-09-23 17:12:47.751
+6056	Chris Gragg	2123	TE	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.755	2014-09-23 17:12:47.755
+6057	John Phillips	889	TE	SD	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.759	2014-09-23 17:12:47.759
+6058	Brandon Williams	2383	TE	CAR	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.763	2014-09-23 17:12:47.763
+6059	Demetrius Harris	2197	TE	KC	0.0	0.0	0.1	0.0	0.0	0.1	\N	\N	\N	\N	4	2014	2014-09-23 17:12:47.767	2014-09-23 17:12:47.767
+6060	Stephen Gostkowski	752	K	NE	9.9	7.45	12.5	9.9	7.45	12.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.249	2014-09-23 17:12:48.249
+6061	Nick Novak	1328	K	SD	9.1	8.0	13.0	9.1	8.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.256	2014-09-23 17:12:48.256
+6062	Dan Bailey	1685	K	DAL	9.1	7.6	11.0	9.1	7.6	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.262	2014-09-23 17:12:48.262
+6063	Shaun Suisham	775	K	PIT	9.0	7.79	15.0	9.0	7.79	15.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.267	2014-09-23 17:12:48.267
+6064	Matt Bryant	743	K	ATL	8.7	7.57	12.0	8.7	7.57	12.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.278	2014-09-23 17:12:48.278
+6065	Robbie Gould	753	K	CHI	8.7	7.5	15.0	8.7	7.5	15.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.283	2014-09-23 17:12:48.283
+6066	Justin Tucker	2079	K	BAL	8.6	5.87	13.0	8.6	5.87	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.289	2014-09-23 17:12:48.289
+6067	Dan Carpenter	745	K	BUF	8.6	8.0	11.0	8.6	8.0	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.294	2014-09-23 17:12:48.294
+6068	Cody Parkey	2626	K	PHI	8.6	7.6	10.0	8.6	7.6	10.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.3	2014-09-23 17:12:48.3
+6069	Patrick Murray	2684	K	TB	8.6	4.5	9.3	8.6	4.5	9.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.305	2014-09-23 17:12:48.305
+6070	Graham Gano	1031	K	CAR	8.6	6.8	13.0	8.6	6.8	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.311	2014-09-23 17:12:48.311
+6071	Phil Dawson	748	K	SF	8.5	5.0	10.5	8.5	5.0	10.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.317	2014-09-23 17:12:48.317
+6072	Blair Walsh	1925	K	MIN	8.5	7.17	14.0	8.5	7.17	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.322	2014-09-23 17:12:48.322
+6073	Josh Scobee	773	K	JAC	8.5	4.0	9.7	8.5	4.0	9.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.328	2014-09-23 17:12:48.328
+6074	Caleb Sturgis	2134	K	MIA	8.5	7.6	11.0	8.5	7.6	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.333	2014-09-23 17:12:48.333
+6075	Mason Crosby	747	K	GB	8.5	6.0	11.5	8.5	6.0	11.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.339	2014-09-23 17:12:48.339
+6076	Shayne Graham	754	K	NO	8.4	4.0	11.0	8.4	4.0	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.344	2014-09-23 17:12:48.344
+6077	Adam Vinatieri	777	K	IND	8.3	7.0	12.5	8.3	7.0	12.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.351	2014-09-23 17:12:48.351
+6078	Nick Folk	751	K	NYJ	8.2	6.0	13.0	8.2	6.0	13.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.357	2014-09-23 17:12:48.357
+6079	Kai Forbath	1687	K	WAS	8.1	6.98	9.0	8.1	6.98	9.0	Right Groin		Questionable	2014-09-23	4	2014	2014-09-23 17:12:48.362	2014-09-23 17:12:48.362
+6080	Cairo Santos	2502	K	KC	8.0	6.0	8.3	8.0	6.0	8.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.368	2014-09-23 17:12:48.368
+6081	Josh Brown	741	K	NYG	7.8	6.0	9.5	7.8	6.0	9.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.374	2014-09-23 17:12:48.374
+6082	Sebastian Janikowski	759	K	OAK	7.8	4.0	9.0	7.8	4.0	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.38	2014-09-23 17:12:48.38
+6083	Ryan Succop	893	K	TEN	7.7	4.0	8.3	7.7	4.0	8.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.385	2014-09-23 17:12:48.385
+6084	Alex Henery	1473	K	DET	7.6	0.0	11.0	7.6	0.0	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.391	2014-09-23 17:12:48.391
+6085	Randy Bullock	1930	K	HOU	7.6	5.0	9.0	7.6	5.0	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.395	2014-09-23 17:12:48.395
+6086	Zach Hocker	2484	K	WAS	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.399	2014-09-23 17:12:48.399
+6087	Chandler Catanzaro	2528	K	ARI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.403	2014-09-23 17:12:48.403
+6088	Brandon Bogotay	2287	K	CLE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.407	2014-09-23 17:12:48.407
+6089	Brandon McManus	2349	K	DEN	0.0	0.0	0.0	0.0	0.0	0.0	Right Groin		Probable	2014-09-23	4	2014	2014-09-23 17:12:48.41	2014-09-23 17:12:48.41
+6090	Dustin Hopkins	2124	K	BUF	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.415	2014-09-23 17:12:48.415
+6091	Travis Coons	2649	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.419	2014-09-23 17:12:48.419
+6092	Maikon Bonani	2365	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.422	2014-09-23 17:12:48.422
+6093	Derek Dimke	1907	K	NO	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.427	2014-09-23 17:12:48.427
+6094	Greg Zuerlein	1865	K	STL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.43	2014-09-23 17:12:48.43
+6095	Billy Cundiff	1101	K	CLE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.434	2014-09-23 17:12:48.434
+6096	Matt Prater	769	K	DEN	0.0	0.0	0.0	0.0	0.0	0.0	Suspension		Suspend	2014-09-23	4	2014	2014-09-23 17:12:48.438	2014-09-23 17:12:48.438
+6097	Mike Nugent	768	K	CIN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.442	2014-09-23 17:12:48.442
+6098	Rian Lindell	762	K	TB	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.446	2014-09-23 17:12:48.446
+6099	Steven Hauschka	758	K	SEA	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.45	2014-09-23 17:12:48.45
+6100	Rob Bironas	740	K	TEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.454	2014-09-23 17:12:48.454
+6101	Jay Feely	750	K	ARI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.458	2014-09-23 17:12:48.458
+6102	Panthers	1048	DST	CAR	11.9	4.0	14.0	11.9	4.0	14.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.874	2014-09-23 17:12:48.874
+6103	Lions	1062	DST	DET	8.5	4.9	13.03	8.5	4.9	13.03	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.883	2014-09-23 17:12:48.883
+6104	Dolphins	1053	DST	MIA	8.4	5.0	12.5	8.4	5.0	12.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.889	2014-09-23 17:12:48.889
+6105	Steelers	1037	DST	PIT	8.2	5.0	13.5	8.2	5.0	13.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.894	2014-09-23 17:12:48.894
+6106	Bills	1047	DST	BUF	8.1	6.0	9.8	8.1	6.0	9.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.9	2014-09-23 17:12:48.9
+6107	Patriots	1041	DST	NE	8.0	6.7	13.5	8.0	6.7	13.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.906	2014-09-23 17:12:48.906
+6108	Redskins	1058	DST	WAS	7.9	4.5	10.91	7.9	4.5	10.91	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.911	2014-09-23 17:12:48.911
+6109	Chargers	1054	DST	SD	7.8	2.0	18.5	7.8	2.0	18.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.917	2014-09-23 17:12:48.917
+6110	Bears	1049	DST	CHI	7.7	2.0	8.8	7.7	2.0	8.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.923	2014-09-23 17:12:48.923
+6111	Texans	1063	DST	HOU	7.4	2.0	9.69	7.4	2.0	9.69	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.928	2014-09-23 17:12:48.928
+6112	Raiders	1066	DST	OAK	6.9	5.4	9.0	6.9	5.4	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.934	2014-09-23 17:12:48.934
+6113	Buccaneers	1057	DST	TB	6.8	3.0	7.8	6.8	3.0	7.8	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.94	2014-09-23 17:12:48.94
+6114	49ers	1055	DST	SF	6.6	4.0	8.0	6.6	4.0	8.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.946	2014-09-23 17:12:48.946
+6115	Giants	1036	DST	NYG	6.2	2.0	10.53	6.2	2.0	10.53	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.951	2014-09-23 17:12:48.951
+6116	Ravens	1038	DST	BAL	6.0	2.0	11.0	6.0	2.0	11.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.957	2014-09-23 17:12:48.957
+6117	Jets	1042	DST	NYJ	5.9	4.0	8.84	5.9	4.0	8.84	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.963	2014-09-23 17:12:48.963
+6118	Vikings	1040	DST	MIN	5.8	0.0	6.6	5.8	0.0	6.6	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.968	2014-09-23 17:12:48.968
+6119	Eagles	1043	DST	PHI	5.7	3.0	6.3	5.7	3.0	6.3	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.974	2014-09-23 17:12:48.974
+6120	Packers	1050	DST	GB	5.7	2.0	8.0	5.7	2.0	8.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.98	2014-09-23 17:12:48.98
+6121	Falcons	1046	DST	ATL	5.7	4.0	9.0	5.7	4.0	9.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.985	2014-09-23 17:12:48.985
+6122	Colts	1051	DST	IND	5.6	0.0	11.5	5.6	0.0	11.5	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.991	2014-09-23 17:12:48.991
+6123	Saints	1065	DST	NO	5.0	2.0	7.7	5.0	2.0	7.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:48.997	2014-09-23 17:12:48.997
+6124	Chiefs	1064	DST	KC	5.0	2.0	9.7	5.0	2.0	9.7	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.002	2014-09-23 17:12:49.002
+6125	Titans	1044	DST	TEN	5.0	2.5	8.26	5.0	2.5	8.26	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.046	2014-09-23 17:12:49.046
+6126	Jaguars	1052	DST	JAC	4.1	-2.0	5.02	4.1	-2.0	5.02	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.051	2014-09-23 17:12:49.051
+6127	Cowboys	1039	DST	DAL	3.2	-3.0	6.09	3.2	-3.0	6.09	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.055	2014-09-23 17:12:49.055
+6128	Browns	1060	DST	CLE	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.059	2014-09-23 17:12:49.059
+6129	Broncos	1061	DST	DEN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.063	2014-09-23 17:12:49.063
+6130	Bengals	1059	DST	CIN	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.067	2014-09-23 17:12:49.067
+6131	Seahawks	1056	DST	SEA	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.071	2014-09-23 17:12:49.071
+6132	Cardinals	1045	DST	ARI	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.075	2014-09-23 17:12:49.075
+6133	Rams	1067	DST	STL	0.0	0.0	0.0	0.0	0.0	0.0	\N	\N	\N	\N	4	2014	2014-09-23 17:12:49.079	2014-09-23 17:12:49.079
+\.
+
+
+--
+-- Name: projections_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('projections_id_seq', 6133, true);
+
+
+--
+-- Data for Name: salaries; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY salaries ("position", player_name, salary, league, week, year, website, ppd_std, ppd_low, ppd_high) FROM stdin;
+RB	Shaun Draughn	3000	NFL	3	2014	DK	0.10	0.00	0.23
+TE	Matthew Mulligan	3000	NFL	3	2014	DK	0.00	0.00	0.00
+QB	Drew Brees	9300	NFL	4	2014	Dk	2.43	2.33	3.00
+QB	Andrew Luck	9300	NFL	4	2014	Dk	2.11	1.78	2.89
+WR	Calvin Johnson	8500	NFL	4	2014	Dk	1.93	1.72	2.25
+QB	Matt Ryan	8300	NFL	4	2014	Dk	2.41	2.23	3.13
+RB	DeMarco Murray	8300	NFL	4	2014	Dk	2.03	1.10	2.38
+WR	Julio Jones	8300	NFL	4	2014	Dk	1.79	1.55	2.35
+QB	Jay Cutler	8100	NFL	3	2014	DK	2.28	1.76	3.25
+QB	Jay Cutler	8200	NFL	4	2014	Dk	2.51	1.88	3.00
+QB	Aaron Rodgers	8200	NFL	4	2014	Dk	2.55	1.89	3.50
+QB	Kirk Cousins	8200	NFL	3	2014	DK	1.93	1.39	2.25
+QB	Kirk Cousins	8200	NFL	4	2014	Dk	2.03	1.76	2.63
+WR	Brandon Marshall	8300	NFL	3	2014	DK	1.70	1.46	2.28
+WR	Brandon Marshall	8100	NFL	4	2014	Dk	1.69	1.50	1.88
+QB	Matthew Stafford	8000	NFL	4	2014	Dk	2.33	1.96	2.88
+QB	Nick Foles	8000	NFL	4	2014	Dk	2.25	1.80	2.63
+WR	Dez Bryant	7900	NFL	4	2014	Dk	1.76	1.52	2.43
+RB	Matt Forte	7600	NFL	3	2014	DK	2.06	1.14	2.40
+RB	Matt Forte	7800	NFL	4	2014	Dk	2.51	2.43	2.84
+WR	Antonio Brown	7800	NFL	4	2014	Dk	1.86	1.70	2.43
+QB	Philip Rivers	7700	NFL	4	2014	Dk	2.77	2.24	3.71
+QB	Colin Kaepernick	7600	NFL	4	2014	Dk	2.56	1.86	3.00
+RB	Arian Foster	7500	NFL	4	2014	Dk	1.79	0.00	2.43
+TE	Jimmy Graham	7500	NFL	4	2014	Dk	1.73	1.58	2.23
+RB	Jamaal Charles	7400	NFL	4	2014	Dk	1.86	0.00	2.27
+RB	Le'Veon Bell	7400	NFL	4	2014	Dk	2.07	1.24	2.57
+QB	Robert Griffin III	7300	NFL	3	2014	DK	\N	\N	\N
+QB	Robert Griffin III	7300	NFL	4	2014	Dk	0.07	0.00	0.14
+WR	Jordy Nelson	7200	NFL	4	2014	Dk	1.90	1.72	2.49
+RB	Adrian Peterson	7200	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Cam Newton	7100	NFL	4	2014	Dk	2.30	2.00	2.57
+WR	Pierre Garcon	7100	NFL	3	2014	DK	1.47	0.71	1.93
+WR	Pierre Garcon	7100	NFL	4	2014	Dk	1.43	1.26	2.11
+RB	LeSean McCoy	7000	NFL	4	2014	Dk	2.11	1.86	2.37
+QB	Ben Roethlisberger	6900	NFL	4	2014	Dk	2.87	2.62	3.67
+WR	Victor Cruz	6800	NFL	3	2014	DK	1.53	1.33	2.25
+WR	Victor Cruz	6800	NFL	4	2014	Dk	1.58	1.35	2.62
+QB	Tony Romo	6700	NFL	4	2014	Dk	2.90	2.50	3.50
+QB	Eli Manning	6600	NFL	3	2014	DK	2.20	1.17	2.67
+QB	Eli Manning	6600	NFL	4	2014	Dk	2.53	1.90	3.33
+WR	Alshon Jeffery	6400	NFL	3	2014	DK	1.70	1.17	2.62
+WR	Alshon Jeffery	6600	NFL	4	2014	Dk	1.83	1.43	2.17
+RB	Rashad Jennings	6500	NFL	3	2014	DK	2.15	1.51	2.50
+RB	Rashad Jennings	6500	NFL	4	2014	Dk	2.08	1.85	2.67
+WR	Julian Edelman	6500	NFL	4	2014	Dk	1.78	1.48	2.67
+QB	Geno Smith	6100	NFL	3	2014	DK	2.52	1.70	2.73
+QB	Geno Smith	6500	NFL	4	2014	Dk	2.50	1.00	2.68
+QB	Joe Flacco	6400	NFL	4	2014	Dk	2.35	1.67	2.83
+WR	Michael Crabtree	6400	NFL	4	2014	Dk	1.58	1.42	2.33
+WR	Randall Cobb	6400	NFL	4	2014	Dk	1.80	1.28	2.33
+QB	Tom Brady	6300	NFL	4	2014	Dk	2.93	2.08	3.33
+QB	Michael Vick	5000	NFL	3	2014	DK	0.00	0.00	0.00
+QB	Michael Vick	6300	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Alex Smith	6300	NFL	4	2014	Dk	2.55	1.83	2.68
+WR	Jeremy Maclin	6300	NFL	4	2014	Dk	1.75	1.59	2.33
+RB	Knile Davis	6200	NFL	4	2014	Dk	1.47	0.33	2.50
+RB	Lamar Miller	6200	NFL	4	2014	Dk	2.15	1.68	2.83
+RB	Reggie Bush	6100	NFL	4	2014	Dk	1.55	1.33	2.18
+WR	DeSean Jackson	6100	NFL	3	2014	DK	1.52	0.67	2.25
+WR	DeSean Jackson	6100	NFL	4	2014	Dk	1.45	0.90	2.30
+RB	Darren Sproles	6000	NFL	4	2014	Dk	1.32	0.98	1.72
+QB	Jake Locker	6000	NFL	4	2014	Dk	2.65	2.00	2.80
+WR	Mike Wallace	6000	NFL	4	2014	Dk	1.77	1.60	2.60
+QB	Ryan Tannehill	6000	NFL	4	2014	Dk	2.58	1.94	2.77
+QB	Mike Glennon	5900	NFL	4	2014	Dk	2.68	1.90	3.00
+QB	Ryan Fitzpatrick	5800	NFL	4	2014	Dk	2.80	2.00	3.20
+TE	Greg Olsen	5800	NFL	4	2014	Dk	1.54	1.20	2.14
+RB	Ahmad Bradshaw	5800	NFL	4	2014	Dk	1.98	1.47	2.80
+RB	Bobby Rainey	5800	NFL	4	2014	Dk	1.20	0.60	1.28
+QB	EJ Manuel	5800	NFL	4	2014	Dk	2.58	2.00	2.74
+QB	Blake Bortles	5800	NFL	4	2014	Dk	2.64	2.00	3.20
+WR	Kelvin Benjamin	5800	NFL	4	2014	Dk	1.78	1.60	2.60
+WR	Andre Johnson	5700	NFL	4	2014	Dk	2.18	1.55	2.90
+TE	Martellus Bennett	5200	NFL	3	2014	DK	1.50	1.06	2.60
+TE	Martellus Bennett	5700	NFL	4	2014	Dk	1.60	0.80	2.38
+TE	Rob Gronkowski	5700	NFL	4	2014	Dk	2.06	1.74	2.64
+QB	Teddy Bridgewater	5700	NFL	4	2014	Dk	3.10	2.38	3.22
+WR	Steve Smith Sr.	5600	NFL	4	2014	Dk	\N	\N	\N
+WR	Roddy White	5600	NFL	4	2014	Dk	1.88	1.32	2.94
+WR	Eric Decker	5600	NFL	4	2014	Dk	1.54	0.00	2.54
+RB	C.J. Spiller	5600	NFL	4	2014	Dk	1.94	1.71	3.00
+RB	Eddie Lacy	5600	NFL	4	2014	Dk	2.58	2.44	3.48
+WR	Cordarrelle Patterson	5600	NFL	4	2014	Dk	1.88	1.60	3.38
+RB	Doug Martin	5500	NFL	4	2014	Dk	2.00	1.42	2.60
+RB	Alfred Morris	5500	NFL	3	2014	DK	2.32	1.94	3.20
+RB	Alfred Morris	5500	NFL	4	2014	Dk	2.62	2.02	3.06
+WR	Jordan Matthews	5500	NFL	4	2014	Dk	1.02	0.52	2.10
+QB	Josh McCown	5400	NFL	4	2014	Dk	0.74	0.00	3.22
+RB	Pierre Thomas	5400	NFL	4	2014	Dk	1.70	1.20	2.86
+RB	Donald Brown	5400	NFL	4	2014	Dk	2.92	1.56	3.22
+TE	Niles Paul	5400	NFL	3	2014	DK	1.34	0.94	3.00
+TE	Niles Paul	5400	NFL	4	2014	Dk	0.72	0.44	2.00
+RB	Chris Ivory	5000	NFL	3	2014	DK	1.76	0.66	2.60
+RB	Chris Ivory	5300	NFL	4	2014	Dk	1.42	1.24	2.20
+WR	Kendall Wright	5300	NFL	4	2014	Dk	1.56	1.00	2.38
+WR	T.Y. Hilton	5300	NFL	4	2014	Dk	1.62	0.00	2.40
+WR	Keenan Allen	5300	NFL	4	2014	Dk	1.88	1.32	2.72
+WR	Brandin Cooks	5300	NFL	4	2014	Dk	2.06	1.57	2.60
+WR	Reggie Wayne	5200	NFL	4	2014	Dk	1.62	1.36	2.60
+RB	Mark Ingram	5200	NFL	4	2014	Dk	\N	\N	\N
+QB	Derek Carr	5200	NFL	4	2014	Dk	2.66	1.94	2.80
+RB	Joique Bell	5200	NFL	4	2014	Dk	1.68	0.80	2.64
+WR	James Jones	5100	NFL	4	2014	Dk	1.46	1.32	2.72
+WR	Vincent Jackson	5100	NFL	4	2014	Dk	2.14	1.70	3.04
+QB	Matt Hasselbeck	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Matt Cassel	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Charlie Whitehurst	5000	NFL	4	2014	Dk	0.08	0.00	0.19
+QB	Kyle Orton	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Derek Anderson	5000	NFL	4	2014	Dk	0.06	0.00	0.18
+QB	Bruce Gradkowski	5000	NFL	4	2014	Dk	0.08	0.00	0.19
+QB	Dan Orlovsky	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Kellen Clemens	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Anquan Boldin	5000	NFL	4	2014	Dk	1.44	1.00	2.32
+QB	Matt Moore	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Matt Flynn	5000	NFL	4	2014	Dk	0.10	0.00	0.18
+QB	Matt Schaub	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Luke McCown	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Chad Henne	5000	NFL	4	2014	Dk	1.12	0.00	2.60
+RB	Chris Johnson	5000	NFL	4	2014	Dk	1.64	0.72	1.88
+RB	Chris Johnson	4500	NFL	3	2014	DK	2.70	1.50	3.35
+RB	Justin Forsett	5000	NFL	4	2014	Dk	1.44	0.80	2.40
+QB	Joe Webb	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Mark Sanchez	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Chase Daniel	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Colt McCoy	5000	NFL	3	2014	DK	0.14	0.00	0.20
+QB	Colt McCoy	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	T.J. Yates	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Christian Ponder	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Scott Tolzien	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Jimmy Clausen	5000	NFL	3	2014	DK	\N	\N	\N
+QB	Jimmy Clausen	5000	NFL	4	2014	Dk	0.10	0.00	0.19
+QB	Ryan Mallett	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Kellen Moore	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Brandon Weeden	5000	NFL	4	2014	Dk	0.08	0.00	0.18
+WR	Joe McKnight	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Tyrod Taylor	5000	NFL	4	2014	Dk	\N	\N	\N
+RB	Shane Vereen	5000	NFL	4	2014	Dk	1.84	1.20	2.68
+QB	Landry Jones	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Blaine Gabbert	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Sean Renfree	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Ryan Nassib	5000	NFL	3	2014	DK	\N	\N	\N
+QB	Ryan Nassib	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Matt McGloin	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Matt Barkley	5000	NFL	4	2014	Dk	0.00	0.00	0.00
+QB	Zach Mettenberger	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Aaron Murray	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Tom Savage	5000	NFL	4	2014	Dk	\N	\N	\N
+QB	Jimmy Garoppolo	5000	NFL	4	2014	Dk	\N	\N	\N
+WR	Cecil Shorts III	5000	NFL	4	2014	Dk	1.84	1.20	2.58
+QB	Dustin Vaughan	5000	NFL	4	2014	Dk	\N	\N	\N
+TE	Delanie Walker	4900	NFL	4	2014	Dk	2.05	1.61	3.25
+RB	Fred Jackson	4900	NFL	4	2014	Dk	2.38	2.05	3.50
+WR	Marques Colston	4800	NFL	4	2014	Dk	2.25	1.65	3.88
+RB	Knowshon Moreno	4800	NFL	4	2014	Dk	\N	\N	\N
+WR	Terrance Williams	4800	NFL	4	2014	Dk	1.98	1.39	2.73
+WR	DeAndre Hopkins	4800	NFL	4	2014	Dk	1.98	1.13	2.35
+RB	Khiry Robinson	4800	NFL	4	2014	Dk	2.60	1.95	3.00
+WR	Stevie Johnson	4700	NFL	4	2014	Dk	1.28	0.88	1.68
+WR	Golden Tate	4700	NFL	4	2014	Dk	1.98	1.75	3.05
+RB	Trent Richardson	4700	NFL	4	2014	Dk	2.30	1.50	3.00
+WR	Sammy Watkins	4700	NFL	4	2014	Dk	2.00	1.25	2.93
+WR	Eddie Royal	4600	NFL	4	2014	Dk	1.58	0.90	2.93
+WR	Hakeem Nicks	4600	NFL	4	2014	Dk	1.28	0.50	2.80
+RB	Stevan Ridley	4600	NFL	4	2014	Dk	2.48	1.75	3.00
+TE	Larry Donnell	4600	NFL	3	2014	DK	1.83	1.10	3.00
+TE	Larry Donnell	4600	NFL	4	2014	Dk	2.03	1.15	2.75
+RB	Lorenzo Taliaferro	4600	NFL	4	2014	Dk	1.45	0.08	2.75
+WR	Greg Jennings	4500	NFL	4	2014	Dk	2.10	1.47	3.00
+RB	Frank Gore	4500	NFL	4	2014	Dk	2.55	1.00	3.00
+TE	Vernon Davis	4500	NFL	4	2014	Dk	1.63	0.00	2.73
+RB	Darren McFadden	4500	NFL	4	2014	Dk	1.60	1.34	2.75
+RB	Matt Asiata	4500	NFL	4	2014	Dk	2.90	0.53	3.75
+WR	Torrey Smith	4500	NFL	4	2014	Dk	1.78	1.00	2.33
+RB	Alfred Blue	4500	NFL	4	2014	Dk	1.28	0.70	2.25
+WR	Devin Hester	4400	NFL	4	2014	Dk	1.18	0.75	1.75
+WR	Dwayne Bowe	4400	NFL	4	2014	Dk	1.70	0.50	2.93
+TE	Antonio Gates	4400	NFL	4	2014	Dk	2.13	1.45	3.25
+WR	Allen Robinson	4400	NFL	4	2014	Dk	1.78	0.45	2.00
+WR	Eric Weems	4300	NFL	4	2014	Dk	0.30	0.03	0.50
+TE	Dennis Pitta	4300	NFL	4	2014	Dk	\N	\N	\N
+TE	Jason Witten	4200	NFL	4	2014	Dk	2.05	0.75	3.00
+RB	Steven Jackson	4200	NFL	4	2014	Dk	2.28	2.13	3.38
+RB	Toby Gerhart	4200	NFL	4	2014	Dk	2.18	1.00	3.40
+RB	Ryan Mathews	4200	NFL	4	2014	Dk	\N	\N	\N
+RB	LeGarrette Blount	4200	NFL	4	2014	Dk	1.55	0.83	2.25
+WR	Markus Wheaton	4200	NFL	4	2014	Dk	1.73	1.08	2.58
+RB	Bernard Pierce	4200	NFL	4	2014	Dk	1.48	0.00	3.00
+WR	Mike Evans	4200	NFL	4	2014	Dk	1.75	1.00	2.83
+TE	Owen Daniels	4100	NFL	4	2014	Dk	1.28	0.75	2.43
+WR	Rueben Randle	4100	NFL	4	2014	Dk	1.88	0.50	2.35
+RB	Bishop Sankey	4100	NFL	4	2014	Dk	1.18	0.85	1.75
+WR	Brian Hartline	4000	NFL	4	2014	Dk	1.43	0.75	2.43
+TE	Kyle Rudolph	4000	NFL	4	2014	Dk	0.00	0.00	0.00
+TE	Zach Ertz	4000	NFL	4	2014	Dk	1.60	1.00	2.90
+WR	Allen Hurns	4000	NFL	4	2014	Dk	1.90	1.50	2.00
+TE	Heath Miller	3900	NFL	4	2014	Dk	1.90	1.00	3.03
+RB	Maurice Jones-Drew	3900	NFL	4	2014	Dk	2.47	0.00	2.87
+RB	DeAngelo Williams	3900	NFL	4	2014	Dk	2.97	1.40	3.33
+RB	Jonathan Stewart	3900	NFL	4	2014	Dk	2.07	0.00	3.83
+TE	Jordan Reed	3900	NFL	3	2014	DK	-0.17	-0.33	0.00
+TE	Jordan Reed	3900	NFL	4	2014	Dk	1.97	0.00	3.70
+WR	Donte Moncrief	3900	NFL	4	2014	Dk	0.70	0.27	1.33
+WR	Riley Cooper	3800	NFL	4	2014	Dk	1.97	0.67	2.80
+WR	Justin Hunter	3800	NFL	4	2014	Dk	2.60	1.33	3.93
+WR	Harry Douglas	3700	NFL	4	2014	Dk	2.17	0.00	3.57
+WR	Denarius Moore	3700	NFL	4	2014	Dk	1.90	0.67	2.27
+TE	Travis Kelce	3700	NFL	4	2014	Dk	2.13	1.07	3.57
+TE	Ladarius Green	3700	NFL	4	2014	Dk	0.97	0.80	1.67
+WR	Malcom Floyd	3600	NFL	4	2014	Dk	2.27	1.00	3.83
+RB	Danny Woodhead	3600	NFL	4	2014	Dk	\N	\N	\N
+DST	Patriots 	3500	NFL	4	2014	Dk	2.67	2.23	4.50
+WR	Santonio Holmes	3500	NFL	4	2014	Dk	1.07	0.67	1.33
+TE	Anthony Fasano	3500	NFL	4	2014	Dk	1.27	0.67	1.43
+RB	Mike Tolbert	3500	NFL	4	2014	Dk	0.00	0.00	0.73
+WR	Jeremy Kerley	3500	NFL	4	2014	Dk	2.00	1.00	2.93
+TE	Dwayne Allen	3500	NFL	4	2014	Dk	1.37	0.67	3.00
+RB	Branden Oliver	3500	NFL	4	2014	Dk	0.40	0.07	0.67
+RB	Daniel Thomas	3500	NFL	4	2014	Dk	0.40	0.00	0.84
+WR	Kenny Stills	3500	NFL	4	2014	Dk	1.97	0.67	3.43
+WR	Rod Streater	3500	NFL	4	2014	Dk	0.90	0.00	1.83
+WR	Robert Woods	3500	NFL	4	2014	Dk	1.97	0.97	3.60
+RB	Ka'Deem Carey	3000	NFL	3	2014	DK	0.77	0.00	1.13
+RB	Ka'Deem Carey	3500	NFL	4	2014	Dk	0.90	0.00	1.40
+RB	Antone Smith	3400	NFL	4	2014	Dk	0.40	0.00	0.67
+RB	Fozzy Whittaker	3400	NFL	4	2014	Dk	\N	\N	\N
+TE	Coby Fleener	3400	NFL	4	2014	Dk	1.67	0.67	3.17
+RB	Roy Helu Jr.	3400	NFL	3	2014	DK	\N	\N	\N
+RB	Roy Helu Jr.	3400	NFL	4	2014	Dk	\N	\N	\N
+WR	Marqise Lee	3400	NFL	4	2014	Dk	0.00	0.00	3.27
+DST	Texans 	3300	NFL	4	2014	Dk	2.47	0.67	3.23
+RB	Darrel Young	3300	NFL	3	2014	DK	0.73	0.00	1.40
+RB	Darrel Young	3300	NFL	4	2014	Dk	0.50	0.03	1.00
+TE	Garrett Graham	3300	NFL	4	2014	Dk	1.33	1.00	2.53
+RB	Marcel Reece	3300	NFL	4	2014	Dk	0.70	0.33	1.13
+TE	Charles Clay	3300	NFL	4	2014	Dk	1.77	1.00	3.10
+TE	Josh Hill	3300	NFL	4	2014	Dk	0.27	0.00	0.67
+DST	Falcons 	3200	NFL	4	2014	Dk	1.90	1.33	3.00
+WR	Donnie Avery	3200	NFL	4	2014	Dk	1.43	0.67	2.90
+RB	Shonn Greene	3200	NFL	4	2014	Dk	2.27	1.67	3.67
+TE	Brandon Myers	3200	NFL	4	2014	Dk	1.03	0.83	2.87
+TE	Andrew Quarless	3200	NFL	4	2014	Dk	1.17	0.63	2.17
+RB	Carlos Hyde	3200	NFL	4	2014	Dk	1.83	1.41	3.00
+WR	Kenbrell Thompkins	3200	NFL	4	2014	Dk	0.83	0.33	1.93
+RB	Darrin Reaves	3200	NFL	4	2014	Dk	0.60	0.33	0.86
+DST	Colts 	3100	NFL	4	2014	Dk	1.87	0.00	3.83
+DST	Dolphins 	3100	NFL	4	2014	Dk	2.80	1.67	4.17
+DST	Chargers 	3100	NFL	4	2014	Dk	2.60	0.67	6.17
+TE	Scott Chandler	3100	NFL	4	2014	Dk	1.20	0.67	1.97
+WR	Brandon Gibson	3100	NFL	4	2014	Dk	1.30	0.33	2.67
+WR	Brandon LaFell	3100	NFL	4	2014	Dk	1.43	0.03	1.73
+TE	Rhett Ellison	3100	NFL	4	2014	Dk	0.73	0.23	0.80
+WR	Damaris Johnson	3100	NFL	4	2014	Dk	0.57	0.33	0.77
+RB	Andre Williams	3100	NFL	3	2014	DK	1.47	0.33	1.93
+RB	Andre Williams	3100	NFL	4	2014	Dk	1.20	0.33	1.70
+WR	Jarvis Landry	3100	NFL	4	2014	Dk	0.83	0.33	1.07
+DST	Lions 	3000	NFL	4	2014	Dk	2.83	1.63	4.34
+DST	49ers 	3000	NFL	4	2014	Dk	2.20	1.33	2.67
+DST	Redskins 	3000	NFL	3	2014	DK	2.00	1.00	3.33
+DST	Redskins 	3000	NFL	4	2014	Dk	2.63	1.50	3.64
+DST	Ravens 	3000	NFL	4	2014	Dk	2.00	0.67	3.67
+WR	Santana Moss	3000	NFL	4	2014	Dk	0.10	0.00	0.37
+RB	Ronnie Brown	3000	NFL	4	2014	Dk	0.07	0.00	0.17
+WR	Courtney Roby	3000	NFL	4	2014	Dk	0.13	0.00	0.33
+WR	Brad Smith	3000	NFL	4	2014	Dk	0.23	0.00	0.53
+TE	Daniel Fells	3000	NFL	3	2014	DK	0.63	0.33	1.03
+TE	Daniel Fells	3000	NFL	4	2014	Dk	0.50	0.00	0.83
+WR	Lance Moore	3000	NFL	4	2014	Dk	1.30	0.00	3.37
+WR	Brandon Lloyd	3000	NFL	4	2014	Dk	0.17	0.00	0.60
+WR	Derek Hagan	3000	NFL	4	2014	Dk	0.27	-0.33	0.87
+TE	Craig Stevens	3000	NFL	4	2014	Dk	0.20	0.00	0.50
+TE	Dante Rosario	3000	NFL	3	2014	DK	0.43	0.00	0.67
+TE	Dante Rosario	3000	NFL	4	2014	Dk	0.30	0.00	0.50
+RB	Leon Washington	3000	NFL	4	2014	Dk	0.07	0.00	0.20
+WR	Jason Avant	3000	NFL	4	2014	Dk	1.00	0.67	2.27
+RB	Jackie Battle	3000	NFL	4	2014	Dk	0.13	0.00	0.43
+RB	Montell Owens	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Nate Washington	3000	NFL	4	2014	Dk	2.07	0.67	3.33
+WR	Robert Meachem	3000	NFL	4	2014	Dk	0.53	0.13	1.27
+RB	Tyler Clutts	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+TE	Brent Celek	3000	NFL	4	2014	Dk	0.83	0.33	1.15
+WR	Kassim Osgood	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Matthew Slater	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Frank Summers	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Benjamin Watson	3000	NFL	4	2014	Dk	0.43	0.00	1.40
+WR	Jerricho Cotchery	3000	NFL	4	2014	Dk	1.50	0.00	3.03
+WR	Josh Morgan	3000	NFL	4	2014	Dk	0.33	0.00	0.67
+TE	Brandon Pettigrew	3000	NFL	4	2014	Dk	0.83	0.00	2.13
+RB	Jerome Felton	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+WR	Danny Amendola	3000	NFL	4	2014	Dk	1.10	0.33	2.43
+TE	Bear Pascoe	3000	NFL	4	2014	Dk	0.23	0.00	0.57
+RB	Peyton Hillis	3000	NFL	3	2014	DK	0.43	0.00	0.67
+RB	Peyton Hillis	3000	NFL	4	2014	Dk	0.20	0.00	0.44
+RB	Tony Fiammetta	3000	NFL	4	2014	Dk	0.23	0.00	0.56
+RB	Jed Collins	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Will Ta'ufo'ou	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+WR	Darrius Heyward-Bey	3000	NFL	4	2014	Dk	0.30	0.00	0.77
+RB	John Kuhn	3000	NFL	4	2014	Dk	0.23	0.00	0.57
+WR	Seyi Ajirotutu	3000	NFL	4	2014	Dk	0.10	0.00	0.37
+RB	James Starks	3000	NFL	4	2014	Dk	1.27	0.80	1.83
+TE	David Johnson	3000	NFL	4	2014	Dk	0.03	0.00	0.10
+TE	Clay Harbor	3000	NFL	4	2014	Dk	0.87	0.00	2.07
+TE	Ed Dickson	3000	NFL	4	2014	Dk	0.47	0.00	0.83
+WR	David Nelson	3000	NFL	4	2014	Dk	0.93	0.33	1.70
+TE	Logan Paulsen	3000	NFL	3	2014	DK	1.30	0.00	2.33
+TE	Logan Paulsen	3000	NFL	4	2014	Dk	0.27	0.20	0.33
+RB	Jorvorskie Lane	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Andrew DePaola	3000	NFL	4	2014	Dk	\N	\N	\N
+TE	Richie Brockel	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	David Ausberry	3000	NFL	4	2014	Dk	0.37	0.00	0.77
+RB	Erik Lorig	3000	NFL	4	2014	Dk	0.27	0.00	0.65
+WR	Kris Durham	3000	NFL	4	2014	Dk	\N	\N	\N
+TE	John Phillips	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Ryan Taylor	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Preston Parker	3000	NFL	4	2014	Dk	1.57	0.60	1.73
+WR	Greg Salas	3000	NFL	4	2014	Dk	0.50	0.30	0.67
+WR	Dwayne Harris	3000	NFL	4	2014	Dk	0.33	0.00	0.80
+RB	Bruce Miller	3000	NFL	4	2014	Dk	0.17	0.00	0.40
+TE	Kyle Nelson	3000	NFL	4	2014	Dk	\N	\N	\N
+TE	Mickey Shuler	3000	NFL	4	2014	Dk	0.17	0.00	0.33
+WR	Andre Roberts	3000	NFL	4	2014	Dk	1.43	0.93	3.17
+WR	Jacoby Jones	3000	NFL	4	2014	Dk	0.90	0.33	1.67
+RB	Anthony Dixon	3000	NFL	4	2014	Dk	0.43	0.27	0.61
+WR	Jeremy Ross	3000	NFL	4	2014	Dk	0.50	0.33	0.67
+TE	Jeff Cumberland	3000	NFL	3	2014	DK	1.03	0.33	1.67
+TE	Jeff Cumberland	3000	NFL	4	2014	Dk	1.20	0.60	1.63
+TE	Michael Hoomanawanui	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+WR	Joseph Morgan	3000	NFL	4	2014	Dk	0.90	0.00	2.10
+TE	Lee Smith	3000	NFL	4	2014	Dk	0.17	0.00	0.35
+TE	Luke Stocker	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Dexter McCluster	3000	NFL	4	2014	Dk	1.37	0.50	1.80
+WR	Mike Williams	3000	NFL	4	2014	Dk	1.10	0.33	2.87
+RB	James Develin	3000	NFL	4	2014	Dk	0.17	0.00	0.37
+WR	Kerry Taylor	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Ryan Broyles	3000	NFL	4	2014	Dk	0.10	0.00	0.27
+WR	Marcus Easley	3000	NFL	4	2014	Dk	\N	\N	\N
+TE	James Casey	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+TE	Adrien Robinson	3000	NFL	3	2014	DK	0.77	0.00	1.33
+TE	Adrien Robinson	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+WR	Charles Johnson	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	DuJuan Harris	3000	NFL	4	2014	Dk	0.03	0.00	0.10
+RB	Daniel Herron	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+RB	Henry Hynoski	3000	NFL	3	2014	DK	0.00	0.00	0.03
+RB	Henry Hynoski	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Nick Toon	3000	NFL	4	2014	Dk	0.40	0.00	0.70
+WR	Dontrelle Inman	3000	NFL	4	2014	Dk	0.03	0.00	0.10
+RB	Joe Banyard	3000	NFL	4	2014	Dk	0.13	0.00	0.46
+WR	Kamar Aiken	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+RB	Travaris Cadet	3000	NFL	4	2014	Dk	0.27	0.00	0.95
+RB	Anthony Sherman	3000	NFL	4	2014	Dk	0.20	0.00	0.37
+WR	Julian Talley	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Mike Brown	3000	NFL	4	2014	Dk	0.17	0.00	0.33
+WR	Aldrick Robinson	3000	NFL	4	2014	Dk	0.33	0.00	0.63
+WR	Jeff Maehl	3000	NFL	4	2014	Dk	0.27	0.00	0.76
+WR	Vincent Brown	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Bilal Powell	3000	NFL	3	2014	DK	1.13	0.67	1.67
+RB	Bilal Powell	3000	NFL	4	2014	Dk	0.40	0.00	0.80
+RB	Will Johnson	3000	NFL	4	2014	Dk	0.17	0.00	0.43
+WR	Junior Hemingway	3000	NFL	4	2014	Dk	0.80	0.47	1.60
+RB	Patrick DiMarco	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Zach Sudfeld	3000	NFL	3	2014	DK	0.07	0.00	0.23
+TE	Zach Sudfeld	3000	NFL	4	2014	Dk	0.07	0.00	0.20
+TE	James Hanna	3000	NFL	4	2014	Dk	0.17	0.00	0.46
+RB	Cyrus Gray	3000	NFL	4	2014	Dk	0.40	0.00	1.10
+WR	Tavarres King	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Austin Johnson	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Chris Polk	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+RB	Jacquizz Rodgers	3000	NFL	4	2014	Dk	1.67	0.33	3.03
+TE	Mychal Rivera	3000	NFL	4	2014	Dk	1.37	0.67	2.17
+WR	Brice Butler	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+WR	Cole Beasley	3000	NFL	4	2014	Dk	0.97	0.43	2.17
+TE	Taylor Thompson	3000	NFL	4	2014	Dk	0.10	0.00	0.33
+WR	Chris Owusu	3000	NFL	4	2014	Dk	0.60	0.00	1.83
+WR	Griff Whalen	3000	NFL	4	2014	Dk	0.07	0.00	0.13
+WR	Brenton Bersin	3000	NFL	4	2014	Dk	0.27	0.00	0.53
+RB	Jonathan Grimes	3000	NFL	4	2014	Dk	0.57	0.17	1.00
+WR	Frankie Hammond Jr.	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+TE	Beau Brinkley	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	T.J. Graham	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	A.J. Jenkins	3000	NFL	4	2014	Dk	0.53	0.00	0.87
+WR	Keshawn Martin	3000	NFL	4	2014	Dk	0.40	0.00	0.90
+TE	MarQueis Gray	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	DeVier Posey	3000	NFL	4	2014	Dk	0.50	0.00	1.17
+WR	Jarrett Boykin	3000	NFL	4	2014	Dk	1.23	0.33	1.40
+TE	Tim Wright	3000	NFL	4	2014	Dk	0.60	0.33	0.87
+RB	Jordan Todman	3000	NFL	4	2014	Dk	0.67	0.00	1.13
+TE	Ryan Griffin	3000	NFL	4	2014	Dk	0.37	0.00	0.60
+TE	Chris Gragg	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Jarius Wright	3000	NFL	4	2014	Dk	1.33	0.33	1.53
+RB	Brandon Bolden	3000	NFL	4	2014	Dk	0.60	0.33	0.97
+RB	Latavius Murray	3000	NFL	4	2014	Dk	0.27	0.00	0.50
+RB	Lance Dunbar	3000	NFL	4	2014	Dk	0.77	0.00	1.30
+TE	Joseph Fauria	3000	NFL	4	2014	Dk	0.87	0.07	1.07
+TE	Jack Doyle	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+WR	Russell Shepard	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Vance McDonald	3000	NFL	4	2014	Dk	0.27	0.00	0.53
+RB	Mike James	3000	NFL	4	2014	Dk	0.33	0.00	0.77
+TE	Marcel Jensen	3000	NFL	4	2014	Dk	0.03	0.00	0.07
+RB	Tommy Bohanon	3000	NFL	3	2014	DK	0.43	0.10	0.53
+RB	Tommy Bohanon	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Ryan Grant	3000	NFL	4	2014	Dk	0.23	0.00	0.53
+WR	Mike Campanaro	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Kyle Juszczyk	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+RB	Bryce Brown	3000	NFL	4	2014	Dk	0.23	0.00	0.67
+TE	Levine Toilolo	3000	NFL	4	2014	Dk	1.30	0.53	2.57
+WR	Dri Archer	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Marquise Goodwin	3000	NFL	4	2014	Dk	0.47	0.00	0.87
+TE	Gavin Escobar	3000	NFL	4	2014	Dk	0.43	0.00	1.27
+RB	Theo Riddick	3000	NFL	4	2014	Dk	0.07	0.00	0.20
+WR	Rodney Smith	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Denard Robinson	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Fitzgerald Toussaint	3000	NFL	4	2014	Dk	\N	\N	\N
+TE	Dion Sims	3000	NFL	4	2014	Dk	0.33	0.00	0.80
+WR	Devin Street	3000	NFL	4	2014	Dk	0.30	-0.33	0.94
+WR	Marlon Brown	3000	NFL	4	2014	Dk	0.93	0.33	1.60
+WR	Aaron Dobson	3000	NFL	4	2014	Dk	0.63	0.30	1.33
+TE	Brandon Bostick	3000	NFL	4	2014	Dk	0.13	0.00	0.47
+WR	Justin Brown	3000	NFL	4	2014	Dk	0.43	0.00	0.95
+TE	Brandon Williams	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Storm Johnson	3000	NFL	4	2014	Dk	0.07	0.00	0.17
+TE	Crockett Gillmore	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+TE	Trey Burton	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Solomon Patton	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Da'Rick Rogers	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Silas Redd Jr.	3000	NFL	3	2014	DK	\N	\N	\N
+RB	Silas Redd Jr.	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Jay Prosch	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Orleans Darkwa	3000	NFL	4	2014	Dk	0.13	0.00	0.30
+RB	Joseph Randle	3000	NFL	4	2014	Dk	0.33	0.03	0.49
+TE	C.J. Fiedorowicz	3000	NFL	4	2014	Dk	0.27	0.00	0.53
+WR	Josh Bellamy	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	Senorise Perry	3000	NFL	3	2014	DK	0.03	0.00	0.07
+RB	Senorise Perry	3000	NFL	4	2014	Dk	0.03	0.00	0.10
+WR	Walt Powell	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Josh Huff	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+TE	Asante Cleveland	3000	NFL	4	2014	Dk	\N	\N	\N
+RB	James White	3000	NFL	4	2014	Dk	0.07	0.00	0.20
+WR	Albert Wilson	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Rishard Matthews	3000	NFL	4	2014	Dk	0.30	0.00	0.50
+WR	Andre Holmes	3000	NFL	4	2014	Dk	1.67	0.33	2.37
+WR	Corey Fuller	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+RB	Jamize Olawale	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+WR	Robert Herron	3000	NFL	4	2014	Dk	0.40	0.33	0.50
+TE	Harold Hoskins	3000	NFL	4	2014	Dk	0.90	0.00	3.00
+WR	Jalen Saunders	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+RB	Jerick McKinnon	3000	NFL	4	2014	Dk	0.67	0.40	1.10
+WR	Chris Hogan	3000	NFL	4	2014	Dk	0.07	0.00	0.13
+WR	Saalim Hakim	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Philly Brown	3000	NFL	4	2014	Dk	0.63	0.00	1.00
+WR	Odell Beckham Jr.	3000	NFL	4	2014	Dk	0.83	0.00	2.80
+WR	Quinton Patton	3000	NFL	4	2014	Dk	0.33	0.00	0.87
+RB	Devonta Freeman	3000	NFL	4	2014	Dk	0.53	0.33	0.67
+TE	Austin Seferian-Jenkins	3000	NFL	4	2014	Dk	1.27	0.00	1.53
+WR	Rashad Ross	3000	NFL	4	2014	Dk	\N	\N	\N
+WR	Martavis Bryant	3000	NFL	4	2014	Dk	0.40	0.00	0.77
+TE	Demetrius Harris	3000	NFL	4	2014	Dk	0.00	0.00	0.03
+WR	Bruce Ellington	3000	NFL	4	2014	Dk	0.30	0.00	0.83
+TE	Jace Amaro	3000	NFL	3	2014	DK	1.00	0.60	1.67
+TE	Jace Amaro	3000	NFL	4	2014	Dk	1.00	0.52	1.67
+TE	Eric Ebron	3000	NFL	4	2014	Dk	1.23	0.33	2.20
+TE	Richard Rodgers	3000	NFL	4	2014	Dk	0.23	0.00	0.61
+RB	De'Anthony Thomas	3000	NFL	4	2014	Dk	0.17	0.00	0.47
+WR	Davante Adams	3000	NFL	4	2014	Dk	1.63	0.33	2.50
+TE	Derek Carrier	3000	NFL	4	2014	Dk	0.33	0.00	0.67
+RB	Damien Williams	3000	NFL	4	2014	Dk	0.53	0.00	1.06
+TE	Brian Leonhardt	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Adam Thielen	3000	NFL	4	2014	Dk	0.10	0.00	0.23
+WR	Corey Washington	3000	NFL	4	2014	Dk	0.00	0.00	0.00
+WR	Jeff Janis	3000	NFL	4	2014	Dk	0.23	0.00	0.67
+DST	Bears 	3100	NFL	3	2014	DK	2.70	0.67	3.33
+DST	Bears 	2900	NFL	4	2014	Dk	3.85	1.00	4.40
+DST	Steelers 	2900	NFL	4	2014	Dk	4.10	2.50	6.75
+DST	Panthers 	2900	NFL	4	2014	Dk	5.95	2.00	7.00
+DST	Bills 	2800	NFL	4	2014	Dk	4.05	3.00	4.90
+DST	Chiefs 	2800	NFL	4	2014	Dk	2.50	1.00	4.85
+DST	Eagles 	2800	NFL	4	2014	Dk	2.85	1.50	3.15
+DST	Cowboys 	2700	NFL	4	2014	Dk	1.60	-1.50	3.05
+DST	Vikings 	2700	NFL	4	2014	Dk	2.90	0.00	3.30
+DST	Saints 	2700	NFL	4	2014	Dk	2.50	1.00	3.85
+DST	Jets 	2500	NFL	3	2014	DK	2.85	1.50	4.77
+DST	Jets 	2700	NFL	4	2014	Dk	2.95	2.00	4.42
+DST	Packers 	2600	NFL	4	2014	Dk	2.85	1.00	4.00
+DST	Raiders 	2600	NFL	4	2014	Dk	3.45	2.70	4.50
+DST	Giants 	2600	NFL	3	2014	DK	3.90	2.00	6.00
+DST	Giants 	2600	NFL	4	2014	Dk	3.10	1.00	5.27
+DST	Buccaneers 	2600	NFL	4	2014	Dk	3.40	1.50	3.90
+DST	Jaguars 	2300	NFL	4	2014	Dk	2.05	-1.00	2.51
+DST	Titans 	2200	NFL	4	2014	Dk	2.50	1.25	4.13
+\.
+
+
+--
+-- Data for Name: schema_migrations; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY schema_migrations (version) FROM stdin;
+20140918133812
+20140918150040
+\.
+
+
+--
+-- Name: projections_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY projections
+    ADD CONSTRAINT projections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: index_projections_on_position; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX index_projections_on_position ON projections USING btree ("position");
+
+
+--
+-- Name: index_projections_on_position_and_week_and_year; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX index_projections_on_position_and_week_and_year ON projections USING btree ("position", week, year);
+
+
+--
+-- Name: index_projections_on_week_and_year; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX index_projections_on_week_and_year ON projections USING btree (week, year);
+
+
+--
+-- Name: unique_schema_migrations; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE UNIQUE INDEX unique_schema_migrations ON schema_migrations USING btree (version);
+
+
+--
+-- Name: calc_ppd_trg; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER calc_ppd_trg AFTER INSERT ON salaries FOR EACH ROW EXECUTE PROCEDURE calculate_ppd();
+
+
+--
+-- Name: clean_def_txt_trg; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER clean_def_txt_trg AFTER INSERT ON projections FOR EACH ROW EXECUTE PROCEDURE clean_defense_text();
+
+
+--
+-- Name: remove_old_proj; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER remove_old_proj BEFORE INSERT ON projections FOR EACH ROW EXECUTE PROCEDURE remove_old_projection();
+
+
+--
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+--
+-- PostgreSQL database dump complete
+--
+

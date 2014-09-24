@@ -4,7 +4,8 @@ FantasyOpti::Application.routes.draw do
   
   root 'sites#index'
   
-  get '/rankings/optimal_lineup', to: 'rankings#optimal_lineup'
+  match '/rankings/optimal_lineup',   to: 'rankings#optimal_lineup',   via: 'get'
+
   get '/rankings/:id', to: 'rankings#current_rankings'
   
 
