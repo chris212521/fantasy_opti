@@ -1,0 +1,45 @@
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS and SCSS file within this directory, lib/assets/stylesheets, vendor/assets/stylesheets,
+ * or vendor/assets/stylesheets of plugins, if any, can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the top of the
+ * compiled file, but it's generally better to create a new file per style scope.
+ *
+
+
+ */
+
+/* tech city */
+/*Money colars*/
+/* final color choice */
+/* line 5, c:/Users/HOLGAK/rails_projects/fantasy_opti/app/assets/stylesheets/search-table.css.scss */
+table th {
+  font-family: 'Lato', Helvetica, Arial, sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  font-style: italic !important;
+  background-color: #a6ce95 !important;
+}
+/* line 12, c:/Users/HOLGAK/rails_projects/fantasy_opti/app/assets/stylesheets/search-table.css.scss */
+table td {
+  font-family: 'Lato', Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  padding-right: 8px;
+  text-align: right;
+}
+
+/* line 20, c:/Users/HOLGAK/rails_projects/fantasy_opti/app/assets/stylesheets/search-table.css.scss */
+.table-striped > tbody > tr:nth-child(2n+1) > td, .table-striped > tbody > tr:nth-child(2n+1) > th {
+  background-color: rgba(211, 213, 207, 0.7);
+}
+
+/* line 24, c:/Users/HOLGAK/rails_projects/fantasy_opti/app/assets/stylesheets/search-table.css.scss */
+.left-text {
+  text-align: left !important;
+}
+/* tech city */
+/*Money colars*/
+/* final color choice */
