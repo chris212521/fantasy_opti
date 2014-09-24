@@ -3,7 +3,7 @@ class NFL
   @@season_year = 2014
   @@current_week = FFNerd.current_week
   @@flex_pos = ['RB','WR','TE']
-  @@positions = ['QB','RB','WR','TE','K','DST']
+  @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   
