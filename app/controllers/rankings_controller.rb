@@ -15,20 +15,14 @@ class RankingsController < ApplicationController
   end
   
   def optimal_lineup      
+    #check for params before processing
     if(params.has_key?(:salary) and params.has_key?(:position1))
-      start = Time.new
+
       pos = []
-      pos << params[:position1]
-      pos << params[:position2]
-      pos << params[:position3]
-      pos << params[:position4]
-      pos << params[:position5]
+      pos.push(params[:position1],params[:position2],params[:position3],params[:position4],params[:position5])
       pos.reject!(&:nil?)
   
       @lineup = NFL.find_max_option(params[:salary].to_i, pos)
-      stop = Time.new
-      @timer = stop-start
-        puts "Time elapsed in Controller: #{stop - start} seconds"
     end
   end
 
