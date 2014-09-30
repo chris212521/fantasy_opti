@@ -1,15 +1,16 @@
-<h1>OPTIMAL</h1>
-<br>
-<%= render partial: "shared/search_form" %>	
-
+<h1>Optimal Lineups for Week <%= NFL.current_week%></h1>
 <br>
 
+
+<div class="center col-md-8 col-md-offset-2">
+	<%= render partial: "shared/search_form" %>	
+	
 	<% if !@lineup.nil? %>
 		<%= render partial: "shared/opti_table", locals: {table_data: @lineup} %>
 	<%else%>
 		<h3>Select criteria for your lineup</h3>
 	<%end%>
-
+</div>
 
 
 <%= @timer %>

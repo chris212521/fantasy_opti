@@ -3,11 +3,11 @@
 		  <table id="results" class="tablesorter table-striped">
 		    <thead> <!-- tablesorter table-striped -->
 		    	<tr>
-		    		<th>Player Name</th>
+		    		<th class="left-text">Player Name</th>
 		    		<th>Projected Points</th>
 		    		<%if !defined?(position) or position != 'K' %>
 		    		<th>Salary</th>
-		    		<th>PPD</th>
+		    		<th>Points/$1,000</th>
 		    		<%end%>
 		    	</tr>
 		    </thead>
@@ -30,7 +30,7 @@
 	$(document).ready( function () {
     $('#results').DataTable( {
     	"pageLength": 10,
-    	"order": [[ 2, "desc" ]]
+    	"order": [[ 1, "desc" ]]
     	}	
     );
 } );

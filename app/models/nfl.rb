@@ -1,9 +1,10 @@
 class NFL
   FFNerd.api_key = "bm37zp5dfhjh"
   @@season_year = 2014
-  @@current_week = FFNerd.current_week
+  @@current_week = 4
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
+  @@supported_searchable_pos = [2,3,4,5]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   
@@ -23,13 +24,16 @@ class NFL
     @@flex_pos
   end
   
+  def self.supported_searchable_pos
+    @@supported_searchable_pos
+  end
+  
   def self.update_week_projections(num=nil)
+    #these are special for FFN API
     positions = ['QB','RB','WR','TE','K','DEF']
     
       positions.each do |pos|
           position_proj = FFNerd.weekly_rankings(pos, num)
-          
-          puts pos
       
           position_proj.each do |p|
             Projection.create(player_name: p.name, player_id: p.playerId, position: p.position, team: p.team, std_proj: p.standard,
@@ -54,6 +58,8 @@ class NFL
         }
       end
       
+      puts pos
+      
       pos.each_with_index do |item, index|
           if index == 0
               possibles = arys.select{|r| pos[index].include?(r.position)}
@@ -64,7 +70,8 @@ class NFL
 
      possibles.each do |array_of_players|
         
-        if !(array_of_players.sum(&:salary) > max_sal) or !(array_of_players.uniq.count < array_of_players.count)
+        if (array_of_players.sum(&:salary) <= max_sal) and (array_of_players.uniq.count == array_of_players.count)
+          puts array_of_players.uniq.count
           groomed << array_of_players          
         end
 

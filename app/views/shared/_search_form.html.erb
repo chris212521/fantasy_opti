@@ -1,16 +1,18 @@
   <div class="container-fluid search-criteria">	
 
 	<form action="/rankings/optimal_lineup" method="get">
-	  	  <div class="col-md-4">
-	  	  <div class="row"><h4><%= label_tag(:company_name, "Nutrition Filters:") %></h4></div>
-	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary", class: "search-form-text-field" %></div>
+	  	  <div class="row"><h4><%= label_tag(:company_name, "Player Filters:") %></h4></div>
+	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary Available", class: "search-form-text-field" %></div>
+	  	  <div class="row"><%= label_tag(:company_name, "Positions Needed:") %>
+
+	<%= select_tag(:num_positions, options_for_select(NFL.supported_searchable_pos, params[:num_positions]))%>
+</div>
+	  	  
 			<%= select_tag "position1", options_for_select(NFL.positions,NFL.positions) %>
 			<%= select_tag "position2", options_for_select(NFL.positions,NFL.positions) %>
 			<%= select_tag "position3", options_for_select(NFL.positions,NFL.positions) %>
 			<%= select_tag "position4", options_for_select(NFL.positions,NFL.positions) %>
 			<%= select_tag "position5", options_for_select(NFL.positions,NFL.positions) %>
-			
-	  </div>
 
 	<div class="col-md-12"> 
 	  <%= submit_tag("Search", :name => '', :class=>"btn btn-search") %>
@@ -18,4 +20,35 @@
    </div>
    </form>
 
-	
+<script>
+$(function(){
+    $('#num_positions').change(function() {
+        var selectValue = $(this).val();
+        if(selectValue > 4 ){
+        	$('#position3,#position4,#position5').show();
+        	$('#position3,#position4,#position5').removeClass('toBeRemoved');
+        }else if (selectValue > 3){
+         	$('#position3,#position4').show();
+         	$('#position3,#position4').removeClass('toBeRemoved');
+         	$('#position5').hide();
+         	$('#position5').addClass('toBeRemoved');
+        }else if (selectValue > 2){
+        	$('#position3').show();
+        	$('#position3').removeClass('toBeRemoved');
+         	$('#position5,#position4').hide();
+         	$('#position5,#position4').addClass('toBeRemoved');
+        }else if (selectValue > 1){
+         	$('#position5,#position4,#position3').hide();
+         	$('#position5,#position4,#position3').addClass('toBeRemoved');
+        }
+    });
+});
+
+$('form').submit(function(){
+    $('.toBeRemoved').remove();
+});
+
+$(document).ready(function () {
+  $('#num_positions').change();
+});
+</script>
