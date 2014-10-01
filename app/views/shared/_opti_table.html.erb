@@ -15,9 +15,15 @@
 		      <tr>
 		      	<td class="left-text"><%= data.position %></b></td>
 		      	<td class="left-text"><%= data.player_name %></b></td>
-		      	<td><%= data.std_proj %></td>
 		      	<td><%= data.salary %></td>
-		      	<td><%= data.ppd_std %></td>
+		      	<% if ppr %>
+		      		<td><%= data.ppr_proj %></td>
+		      		<td><%= data.ppd_ppr %></td>
+		      	<% else %>
+		      		<td><%= data.std_proj %></td>
+		      		<td><%= data.ppd_std %></td>
+		      	<% end %>
+		      	
 		      </tr>
 		    <% end %>
 		    </tbody>
@@ -28,7 +34,7 @@
 	$(document).ready( function () {
     $('#results').DataTable( {
     	"pageLength": 10,
-    	"order": [[ 2, "desc" ]]
+    	"order": [[ 3, "desc" ]]
     	}	
     );
 } );

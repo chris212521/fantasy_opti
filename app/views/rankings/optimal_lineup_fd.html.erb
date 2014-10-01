@@ -1,4 +1,4 @@
-<h1>Optimal Lineups for Week <%= NFL.current_week%></h1>
+<h1>Optimal Lineups for Fan Duel - Week <%= NFL.current_week%></h1>
 <br>
 
 
@@ -6,11 +6,8 @@
 	<%= render partial: "shared/search_form" %>	
 	
 	<% if !@lineup.nil? %>
-		<%= render partial: "shared/opti_table", locals: {table_data: @lineup} %>
+		<%= render partial: "shared/opti_table", locals: {table_data: @lineup, ppr: true, site: 'FD'} %>
 	<%else%>
 		<h3>Select criteria for your lineup</h3>
 	<%end%>
 </div>
-
-
-<%= @timer %>

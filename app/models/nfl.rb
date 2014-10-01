@@ -4,7 +4,7 @@ class NFL
   @@current_week = 4
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
-  @@supported_searchable_pos = [2,3,4,5]
+  @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   
@@ -45,9 +45,9 @@ class NFL
     end      
   end
   
-  def self.find_max_option(max_sal, pos)
+  def self.find_max_option(max_sal, pos, site)
 
-    arys = Opti_Ranking.week(NFL.current_week).min_ppd('1').all
+    arys = Opti_Ranking.week(NFL.current_week).min_ppd_ppr(2).all
     groomed = []
     possibles = []
 
@@ -57,8 +57,6 @@ class NFL
         (element == "FLEX") ? NFL.flex_pos : element
         }
       end
-      
-      puts pos
       
       pos.each_with_index do |item, index|
           if index == 0
@@ -71,13 +69,12 @@ class NFL
      possibles.each do |array_of_players|
         
         if (array_of_players.sum(&:salary) <= max_sal) and (array_of_players.uniq.count == array_of_players.count)
-          puts array_of_players.uniq.count
           groomed << array_of_players          
         end
 
      end
       
-      groomed.max_by{ |ar| ar.sum(&:std_proj) }
+      #DK is 1 PPR
+      groomed.max_by{ |ar| ar.sum(&:ppr_proj) }
     end
-
 end
