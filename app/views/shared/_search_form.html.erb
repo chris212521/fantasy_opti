@@ -1,6 +1,6 @@
   <div class="container-fluid search-criteria">	
 
-	<form action="/rankings/optimal_lineup_dk" method="get">
+	<form action="/rankings/optimal_lineup_dk" method="get" autocomplete="off">
 	  	  <div class="row"><h4><%= label_tag(:company_name, "Player Filters:") %></h4></div>
 	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary Available", class: "search-form-text-field" %></div>
 	  	  <div class="row"><%= label_tag(:company_name, "Positions Needed:") %>
@@ -8,10 +8,10 @@
 	<%= select_tag(:num_positions, options_for_select(NFL.supported_searchable_pos, params[:num_positions]))%>
 </div>
 	  	  
-			<%= select_tag "position1", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "position2", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "position3", options_for_select(NFL.positions,NFL.positions) %>
-			<%= select_tag "position4", options_for_select(NFL.positions,NFL.positions) %>
+			<%= select_tag "position1", options_for_select(NFL.dk_positions,params[:position1]) %>
+			<%= select_tag "position2", options_for_select(NFL.dk_positions, if params[:position2].nil? then 'RB' else params[:position2] end) %>
+			<%= select_tag "position3", options_for_select(NFL.dk_positions, if params[:position3].nil? then 'WR' else params[:position3] end) %>
+			<%= select_tag "position4", options_for_select(NFL.dk_positions, if params[:position4].nil? then 'TE' else params[:position4] end) %>
 
 	<div class="col-md-12"> 
 	  <%= submit_tag("Search", :name => '', :class=>"btn btn-search") %>

@@ -4,6 +4,7 @@ class NFL
   @@current_week = 4
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
+  @@dk_positions = ['QB','RB','WR','TE','DEF']
   @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
@@ -26,6 +27,10 @@ class NFL
   
   def self.supported_searchable_pos
     @@supported_searchable_pos
+  end
+  
+  def self.dk_positions
+    @@dk_positions
   end
   
   def self.update_week_projections(num=nil)
