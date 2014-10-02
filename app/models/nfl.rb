@@ -1,4 +1,5 @@
 class NFL
+
   FFNerd.api_key = "bm37zp5dfhjh"
   @@season_year = 2014
   @@current_week = 5
@@ -53,8 +54,8 @@ class NFL
   def self.find_max_option(max_sal, pos, site)
 
     arys = Opti_Ranking.week(NFL.current_week).min_ppd_ppr(2).all
-    groomed = []
-    possibles = []
+    groomed = Set.new
+    possibles = Set.new
 
       #modify FLEX to handle for positions
       if !pos.nil?
@@ -72,13 +73,14 @@ class NFL
       end
 
      possibles.each do |array_of_players|
-        
+       
         if (array_of_players.sum(&:salary) <= max_sal) and (array_of_players.uniq.count == array_of_players.count)
-          groomed << array_of_players          
+          groomed << array_of_players.to_set #unless groomed.include? array_of_players.to_set
         end
-
+        
      end
-      
+     
+
       #DK is 1 PPR
       groomed.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(10)
     end
