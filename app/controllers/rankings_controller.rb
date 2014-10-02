@@ -33,14 +33,12 @@ class RankingsController < ApplicationController
     #check for params before processing
     if(params.has_key?(:salary) and params.has_key?(:position1))
 
-      pos = []
-      pos.push(params[:position1],params[:position2],params[:position3],params[:position4])
-      pos.reject!(&:nil?)
-  start = Time.new
-      @lineup = NFL.find_max_option(params[:salary].to_i, pos, 'DK')
-      stop = Time.new
-      
-      puts stop-start
+      @pos = []
+      @pos.push(params[:position1],params[:position2],params[:position3],params[:position4])
+      @pos.reject!(&:nil?)
+
+      @lineups = NFL.find_max_option(params[:salary].to_i, @pos, 'DK')
+
     end
   end
   
@@ -51,11 +49,9 @@ class RankingsController < ApplicationController
       pos = []
       pos.push(params[:position1],params[:position2],params[:position3],params[:position4])
       pos.reject!(&:nil?)
-  start = Time.new
+
       @lineup = NFL.find_max_option(params[:salary].to_i, pos, 'FD')
-      stop = Time.new
-      
-      puts stop-start
+
     end
   end
 

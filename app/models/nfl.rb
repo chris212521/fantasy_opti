@@ -1,10 +1,10 @@
 class NFL
   FFNerd.api_key = "bm37zp5dfhjh"
   @@season_year = 2014
-  @@current_week = 4
+  @@current_week = 5
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
-  @@dk_positions = ['QB','RB','WR','TE','DEF']
+  @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
   @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
@@ -80,6 +80,6 @@ class NFL
      end
       
       #DK is 1 PPR
-      groomed.max_by{ |ar| ar.sum(&:ppr_proj) }
+      groomed.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(10)
     end
 end

@@ -3,27 +3,26 @@
 		  <table id="results" class="tablesorter table-striped">
 		    <thead> <!-- tablesorter table-striped -->
 		    	<tr>
-		    		<th>Position</th>
-		    		<th>Player Name</th>
-		    		<th>Salary</th>
-		    		<th>Projected Points</th>
-		    		<th>Points/$1,000</th>
+		    		<% positions.each do |data| %>
+		    			<th><%= data %></th>
+		    		<% end %>
+		    			<th>Combined Salary</th>
+		    			<th>Combined Projected Points</th>
 		    	</tr>
 		    </thead>
 		    <tbody>
-		    	 <% table_data.each do |data| %>
-		      <tr>
-		      	<td class="left-text"><%= data.position %></b></td>
-		      	<td class="left-text"><%= data.player_name %></b></td>
-		      	<td><%= data.salary %></td>
-		      	<% if ppr %>
-		      		<td><%= data.ppr_proj %></td>
-		      		<td><%= data.ppd_ppr %></td>
-		      	<% else %>
-		      		<td><%= data.std_proj %></td>
-		      		<td><%= data.ppd_std %></td>
-		      	<% end %>
-		      	
+		    	<% table_data.each do |lineup| %>
+		    	<tr>
+		    	 <% lineup.each do |player| %>
+		      		<td><%= player.player_name %></b></td>
+			      	<% end %>
+			      	
+			      	<td><%= lineup.sum(&:salary) %></td>
+				      	<% if ppr %>
+				      		<td><%= lineup.sum(&:ppr_proj) %></td>
+				      	<% else %>
+				      		<td><%= lineup.sum(&:std_proj) %></td>
+				      	<% end %>
 		      </tr>
 		    <% end %>
 		    </tbody>
@@ -34,7 +33,7 @@
 	$(document).ready( function () {
     $('#results').DataTable( {
     	"pageLength": 10,
-    	"order": [[ 3, "desc" ]]
+    	"order": [[ <%= positions.count + 1 %>, "desc" ]]
     	}	
     );
 } );
