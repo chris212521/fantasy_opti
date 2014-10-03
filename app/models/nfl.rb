@@ -54,8 +54,8 @@ class NFL
   def self.find_max_option(max_sal, pos, site)
 
     arys = Opti_Ranking.week(NFL.current_week).min_ppd_ppr(2).all
-    groomed = Set.new
-    possibles = Set.new
+    groomed = []
+    possibles = []
 
       #modify FLEX to handle for positions
       if !pos.nil?
@@ -72,16 +72,16 @@ class NFL
           end
       end
 
-     possibles.each do |array_of_players|
+    possibles.each do |lineup|  
+       #get players in order so we can use uniq later to filter dupes that were created in different order
+       lineup = lineup.sort_by(&:player_name).sort_by {|o| pos.index(o.position)}
        
-        if (array_of_players.sum(&:salary) <= max_sal) and (array_of_players.uniq.count == array_of_players.count)
-          groomed << array_of_players.to_set #unless groomed.include? array_of_players.to_set
+        if (lineup.sum(&:salary) <= max_sal) and (lineup.uniq.count == lineup.count)
+          groomed << lineup
         end
-        
-     end
-     
-
+      end
+      
       #DK is 1 PPR
-      groomed.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(10)
+       groomed = groomed.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
     end
 end
