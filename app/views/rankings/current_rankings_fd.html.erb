@@ -1,8 +1,0 @@
-<h1><%=params[:id].upcase%> Rankings for Fan Duel - Week <%= NFL.current_week%></h1>
-<div class="col-md-8 col-md-offset-2">
-<% if !@rankings.nil? %>
-		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings, position: params[:id].upcase, ppr: true, site: 'FD'} %>
-<%end%>
-<br>
-
-<br>

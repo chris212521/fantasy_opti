@@ -53,7 +53,7 @@ class NFL
   
   def self.find_max_option(max_sal, pos, site)
 
-    arys = Opti_Ranking.week(NFL.current_week).min_ppd_ppr(2).all
+    arys = Opti_Ranking.week(NFL.current_week).site(site).min_ppd_ppr(2).all
     groomed = []
     possibles = []
 

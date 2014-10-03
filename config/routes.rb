@@ -2,14 +2,13 @@ FantasyOpti::Application.routes.draw do
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".
   
-  match '/rankings/optimal_lineup_dk',   to: 'rankings#optimal_lineup_dk',   via: 'get'
-  match '/rankings/optimal_lineup_fd',   to: 'rankings#optimal_lineup_fd',   via: 'get'
+  match 'optimal_lineup/:site',   to: 'rankings#optimal_lineup',   via: 'get'
+  match 'optimal_lineup/',   to: 'rankings#optimal_lineup',   via: 'get'
   match '/admin',   to: 'sites#admin',   via: 'get'
   match '/update',   to: 'sites#update',   via: 'get'
-  match '/rankings/dk/:id',   to: 'rankings#current_rankings_dk',   via: 'get'
-  match '/rankings/fd/:id',   to: 'rankings#current_rankings_fd',   via: 'get'
+  match '/rankings/:site/:id',   to: 'rankings#current_rankings',   via: 'get'
   
-  root 'rankings#optimal_lineup_dk'
+  root 'rankings#optimal_lineup'
 
   # You can have the root of your site routed with "root"
   # root 'welcome#index'

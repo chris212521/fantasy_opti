@@ -1,0 +1,7 @@
+<h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%= NFL.current_week%></h1>
+<div class="col-md-8 col-md-offset-2">
+<% if !@rankings.nil? %>
+		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings, ppr: true} %>
+<%end%>
+
+<br>

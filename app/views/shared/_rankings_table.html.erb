@@ -4,24 +4,15 @@
 		    <thead> <!-- tablesorter table-striped -->
 		    	<tr>
 		    		<th class="left-text">Player Name</th>
-		    		<%if !defined?(position) or position != 'K' %>
 		    		<th>Salary</th>
 		    		<th>Projected Points</th>
 		    		<th>Points/$1,000</th>
-		    		<%else%>
-		    		<th>Projected Points</th>
-		    		<th>Points/$1,000</th>
-		    		<%end%>
-		    		
-		    		
 		    	</tr>
 		    </thead>
 		    <tbody>
 		    	 <% table_data.each do |data| %>
 		      <tr>
 		      	<td class="left-text"><%= data.player_name %></b></td>
-		      	
-		      	<%if !defined?(position) or position != 'K' %>
 		      		<td><%= data.salary %></td>
 			      	<%if ppr %>
 			      		<td><%= data.ppr_proj %></td>
@@ -30,10 +21,6 @@
 			      		<td><%= data.std_proj %></td>
 			      		<td><%= data.ppd_std %></td>
 			      	<%end%>
-			      	<%else%>
-			      	<td><%= data.std_proj %></td>
-			      	<td>N/A</td>
-		      	<%end%>
 		      </tr>
 		    <% end %>
 		    </tbody>
