@@ -7,6 +7,8 @@
 		    		<th>Salary</th>
 		    		<th>Projected Points</th>
 		    		<th>Points/$1,000</th>
+		    		<th>Matchup</th>
+		    		<th>Game Time</th>
 		    	</tr>
 		    </thead>
 		    <tbody>
@@ -21,6 +23,8 @@
 			      		<td><%= data.std_proj %></td>
 			      		<td><%= data.ppd_std %></td>
 			      	<%end%>
+			      	<td><%= format_game_teams(data).html_safe %></td>
+			      	<td><%= data.game_date.strftime('%A, %b %d, %l:%M %p') %></td>
 		      </tr>
 		    <% end %>
 		    </tbody>
