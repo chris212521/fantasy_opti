@@ -83,6 +83,8 @@ GEM
     rake (10.3.2)
     rdoc (4.1.2)
       json (~> 1.4)
+    rest-client (1.6.7)
+      mime-types (>= 1.16)
     route_downcaser (0.2.1)
     sass (3.2.19)
     sass-rails (4.0.3)
@@ -124,10 +126,12 @@ DEPENDENCIES
   fantasy_football_nerd
   jbuilder (~> 1.2)
   jquery-rails
+  json
   newrelic_rpm
   pg (= 0.15.1)
   rails (= 4.0.4)
   rails_12factor
+  rest-client
   route_downcaser
   sass-rails (~> 4.0.2)
   sdoc

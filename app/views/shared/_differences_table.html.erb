@@ -1,0 +1,40 @@
+<h3><strong>Results:</strong></h3>
+		<div class="table-responsive">
+		  <table id="results" class="tablesorter table-striped">
+		    <thead> <!-- tablesorter table-striped -->
+		    	<tr>
+		    		<th class="left-text">Player Name</th>
+		    		<th>DraftKings Salary</th>
+		    		<th>FanDuel Salary</th>
+		    		<th>DraftKings Salary %</th>
+		    		<th>FanDuel Salary %</th>
+		    		<th>DraftKing Difference%</th>
+		    		<th>FanDuel Difference%</th>
+		    	</tr>
+		    </thead>
+		    <tbody>
+		    	 <% table_data.each do |data| %>
+		      <tr>
+		      	<td class="left-text"><%= data.player_name %></b></td>
+		      		<td><%= data.dk_salary %></td>
+		      		<td><%= data.fd_salary %></td>
+		      		<td><%= data.dk_pct %></td>
+		      		<td><%= data.fd_pct %></td>
+		      		<td><%= data.dk_pct - data.fd_pct %></td>
+		      		<td><%= data.fd_pct - data.dk_pct %></td>
+
+		      </tr>
+		    <% end %>
+		    </tbody>
+		  </table>
+		</div>
+		
+<script>
+	$(document).ready( function () {
+    $('#results').DataTable( {
+    	"pageLength": 10,
+    	"order": [[ 2, "desc" ]]
+    	}	
+    );
+} );
+</script>

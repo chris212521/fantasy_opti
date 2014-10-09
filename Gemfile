@@ -14,6 +14,9 @@ gem 'bootstrap-will_paginate'
 gem 'route_downcaser'
 gem 'newrelic_rpm'
 
+gem 'rest-client'
+gem 'json'
+
 # Use Uglifier as compressor for JavaScript assets
 gem 'uglifier', '>= 1.3.0'
 

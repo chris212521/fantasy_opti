@@ -38,6 +38,14 @@
 					<% end %>
 		          </ul>
         	</li>
+        	<li class="dropdown">
+          		<a href="#" class="dropdown-toggle" data-toggle="dropdown">Salary Differences<span class="caret"></span></a>
+		          <ul class="dropdown-menu" role="menu">
+		          	<% NFL.dk_positions.each do |name| %>
+						<li><a href="/differences/<%= name %>"><%= name %></a></li>
+					<% end %>
+		          </ul>
+        	</li>
           </ul>
         </div><!--/.nav-collapse -->
     </div>

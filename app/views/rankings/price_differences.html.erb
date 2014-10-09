@@ -1,0 +1,8 @@
+<h1><%=params[:id].upcase%> Price Differences - Week <%= NFL.current_week%></h1>
+<div class="col-md-8 col-md-offset-2">
+<% if !@diff.nil? %>
+		<%= render partial: "shared/differences_table", locals: {table_data: @diff, ppr: true} %>
+<%end%>
+
+
+<br>
