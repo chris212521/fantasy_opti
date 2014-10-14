@@ -7,7 +7,6 @@ class NFL
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
   @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
   @@fd_positions = ['QB','RB','WR','TE','K','DST']
-  @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   

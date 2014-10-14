@@ -2,12 +2,6 @@ class NFL_Lineup
   attr_accessor :site, :max_salary
   attr_reader :positions, :excluded_days, :players
   FFNerd.api_key = "bm37zp5dfhjh"
-  @@season_year = 2014
-  @@current_week = 6
-  @@flex_pos = ['RB','WR','TE']
-  @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
-  @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
-  @@fd_positions = ['QB','RB','WR','TE','K','DST']
   @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
@@ -88,21 +82,13 @@ class NFL_Lineup
      groomed = []
      
      @positions.each_with_index do |item, index|
-            if index == 0
-                possibles = @players.select{|r| @positions[index].include?(r.position)}
-            else
-                possibles = possibles.product(@players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
-            end
+            index == 0 ? possibles = @players.select{|r| @positions[index].include?(r.position)} : possibles = possibles.product(@players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
         end
         
       possibles.each do |lineup|  
          #get players in order so we can use uniq later to filter dupes that were created in different order
-         
          lineup = lineup.sort_by(&:player_name).sort_by {|o| @positions.flatten.index(o.position) || 99}
-         
-          if (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count)
-            groomed << lineup
-          end
+         (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count) ? groomed << lineup : nil
         end
         
         groomed
