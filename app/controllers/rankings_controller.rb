@@ -17,21 +17,11 @@ class RankingsController < ApplicationController
     #check for params before processing
     if(params.has_key?(:salary) and params.has_key?(:position1))
 
-      @pos = []
-      @pos.push(params[:position1],params[:position2],params[:position3],params[:position4])
-      @pos.reject!(&:nil?)
+      @pos = NFL_Lineup.pos_to_array(params[:position1],params[:position2],params[:position3],params[:position4])
 
-      exclude_days = []
+      lineup = NFL_Lineup.new(params[:site].upcase,@pos,params[:salary].to_i,NFL_Lineup.groom_excluded_days(params[:thursday],params[:monday]))
       
-      if params[:thursday] == "0"
-        exclude_days << 'Thursday'
-      end
-      
-      if params[:monday] == "0"
-        exclude_days << 'Monday'
-      end
-
-      lineup = NFL_Lineup.new(params[:site].upcase,@pos,params[:salary].to_i,exclude_days.map(&:upcase))
+      #lineup.positions=(@pos)
     
       @lineups = lineup.optimal_lineup()
     end
