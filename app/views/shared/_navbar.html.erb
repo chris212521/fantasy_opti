@@ -19,27 +19,42 @@
 		          <ul class="dropdown-menu" role="menu">
 		          	<li class=""><a href="/optimal_lineup/DK">DraftKings</a></li>
 		          	<li class=""><a href="/optimal_lineup/FD">FanDuel</a></li>
+		          	<li class=""><a href="/optimal_lineup/V">Victiv</a></li>
 		          </ul>
         	</li>
+        	
+        	<li>
+                    <a href="#" class="dropdown-toggle" data-toggle="dropdown">DFS Rankings<span class="caret"></span></a>
+                    <ul class="dropdown-menu multi-level">
+                        <li class="dropdown-submenu">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">DraftKings</a>
+                            <ul class="dropdown-menu">
+                                <% NFL.dk_positions.each do |name| %>
+									<li><a href="/rankings/DK/<%= name %>"><%= name %></a></li>
+								<% end %>
+                            </ul>
+                        </li>
+                        <li class="dropdown-submenu">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">FanDuel</a>
+                            <ul class="dropdown-menu">
+                                <% NFL.fd_positions.each do |name| %>
+									<li><a href="/rankings/FD/<%= name %>"><%= name %></a></li>
+								<% end %>
+                            </ul>
+                        </li>
+                        <li class="dropdown-submenu">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Victiv</a>
+                            <ul class="dropdown-menu">
+                                <% NFL.dk_positions.each do |name| %>
+									<li><a href="/rankings/V/<%= name %>"><%= name %></a></li>
+								<% end %>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
 	          	
-          	<li class="dropdown">
-          		<a href="#" class="dropdown-toggle" data-toggle="dropdown">DraftKings Rankings<span class="caret"></span></a>
-		          <ul class="dropdown-menu" role="menu">
-		          	<% NFL.dk_positions.each do |name| %>
-						<li><a href="/rankings/DK/<%= name %>"><%= name %></a></li>
-					<% end %>
-		          </ul>
-        	</li>
         	<li class="dropdown">
-          		<a href="#" class="dropdown-toggle" data-toggle="dropdown">FanDuel Rankings<span class="caret"></span></a>
-		          <ul class="dropdown-menu" role="menu">
-		          	<% NFL.positions.each do |name| %>
-						<li><a href="/rankings/FD/<%= name %>"><%= name %></a></li>
-					<% end %>
-		          </ul>
-        	</li>
-        	<li class="dropdown">
-          		<a href="#" class="dropdown-toggle" data-toggle="dropdown">Salary Differences<span class="caret"></span></a>
+          		<a href="#" class="dropdown-toggle" data-toggle="dropdown">DK vs FD Salary<span class="caret"></span></a>
 		          <ul class="dropdown-menu" role="menu">
 		          	<% NFL.dk_positions.each do |name| %>
 						<li><a href="/differences/<%= name %>"><%= name %></a></li>

@@ -31,8 +31,9 @@ class RankingsController < ApplicationController
         exclude_days << 'Monday'
       end
 
-      @lineups = NFL.find_max_option(params[:salary].to_i, @pos, params[:site].upcase, exclude_days.map(&:upcase))
-
+      lineup = NFL_Lineup.new(params[:site].upcase,@pos,params[:salary].to_i,exclude_days.map(&:upcase))
+    
+      @lineups = lineup.optimal_lineup()
     end
   end
   

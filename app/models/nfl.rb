@@ -6,6 +6,7 @@ class NFL
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
   @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
+  @@fd_positions = ['QB','RB','WR','TE','K','DST']
   @@supported_searchable_pos = [2,3,4]
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
@@ -34,6 +35,10 @@ class NFL
     @@dk_positions
   end
   
+  def self.fd_positions
+    @@fd_positions
+  end
+  
   def self.update_week_projections(num=nil)
     #these are special for FFN API
     positions = ['QB','RB','WR','TE','K','DEF']
@@ -49,6 +54,7 @@ class NFL
       end
     ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'FD\')')
     ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'DK\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'V\')')
     end      
   end
   

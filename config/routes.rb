@@ -4,14 +4,13 @@ FantasyOpti::Application.routes.draw do
   
   match '/differences/:id',   to: 'rankings#price_differences',   via: 'get'
   match 'optimal_lineup/:site',   to: 'rankings#optimal_lineup',   via: 'get'
-  match 'optimal_lineup/',   to: 'rankings#optimal_lineup',   via: 'get'
   match '/admin',   to: 'sites#admin',   via: 'get'
   match '/update',   to: 'sites#update',   via: 'get'
   match '/test',   to: 'sites#index',   via: 'get'
   match '/rankings/:site/:id',   to: 'rankings#current_rankings',   via: 'get'
   
   
-  root 'rankings#optimal_lineup'
+  root 'sites#index'
 
   # You can have the root of your site routed with "root"
   # root 'welcome#index'

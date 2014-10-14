@@ -3,7 +3,7 @@
 
 
 <div class="center col-md-8 col-md-offset-2">
-	<%= render partial: "shared/search_form" %>	
+	<%= render partial: "shared/search_form", locals: {site: params[:site].upcase} %>	
 	
 	<% if !@lineups.nil? %>
 		<%= render partial: "shared/opti_table", locals: {table_data: @lineups, ppr: true, positions: @pos} %>
