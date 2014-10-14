@@ -1,6 +1,6 @@
 class NFL_Lineup
-  attr_accessor :excluded_days, :site, :salary
-  attr_reader :positions
+  attr_accessor :site, :max_salary
+  attr_reader :positions, :excluded_days, :players
   FFNerd.api_key = "bm37zp5dfhjh"
   @@season_year = 2014
   @@current_week = 6
@@ -12,17 +12,34 @@ class NFL_Lineup
   #FFNerd.current_week
   #FFNerd.schedule.first.gameDate[0,4]
   
-  def initialize( site=nil, pos=nil, salary=nil, excluded_days=nil )
+  def initialize( site=nil, pos=nil, max_salary=nil, excluded_days=nil )
     @site = site
     self.positions=(pos)
-    @salary = salary
-    @excluded_days = excluded_days
+    @max_salary = max_salary
+    self.excluded_days=(excluded_days)
+    self.set_players
   end
   
   def positions=(pos)
     @positions = pos.collect { |element|
           (element == "FLEX") ? NFL.flex_pos : element
           }
+  end
+  
+  def excluded_days=(a)
+    #a = Thurs, Mon
+    if a.any?
+        ed = []
+        a[0] == "0" ? ed << 'THURSDAY' : nil
+        a[1] == "0" ? ed << 'MONDAY' : nil
+        @excluded_days = ed
+     else
+        @excluded_days = 'x'
+    end
+  end
+  
+  def set_players
+     @players = Opti_Ranking.week(NFL.current_week).site(@site).exclude_day(@excluded_days).all
   end
   
   def self.positions
@@ -59,34 +76,22 @@ class NFL_Lineup
       p.reject!(&:nil?)
   end
   
-  def self.groom_excluded_days(thurs, mon)
-    ed = []
-    if thurs == "0"
-        ed << 'Thursday'
-      end
-      
-      if mon == "0"
-        ed << 'Monday'
-      end
-      
-      ed.map(&:upcase)
-  end
-  
   def self.convert_flex_to_pos(positions)
      positions.collect { |element|
           (element == "FLEX") ? NFL.flex_pos : element
           }
   end
   
-  def possible_lineups(players)
+  def possible_lineups()
+    #returns all possible combinations, with respect to parameters (salary, positions)
      possibles = []
      groomed = []
      
      @positions.each_with_index do |item, index|
             if index == 0
-                possibles = players.select{|r| @positions[index].include?(r.position)}
+                possibles = @players.select{|r| @positions[index].include?(r.position)}
             else
-                possibles = possibles.product(players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
+                possibles = possibles.product(@players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
             end
         end
         
@@ -95,7 +100,7 @@ class NFL_Lineup
          
          lineup = lineup.sort_by(&:player_name).sort_by {|o| @positions.flatten.index(o.position) || 99}
          
-          if (lineup.sum(&:salary) <= @salary) and (lineup.uniq.count == lineup.count)
+          if (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count)
             groomed << lineup
           end
         end
@@ -104,18 +109,6 @@ class NFL_Lineup
   end
   
   def optimal_lineup()
-      if @excluded_days.nil? or @excluded_days.empty?
-        @excluded_days = 'x'
-      end
-        
-        ary = Opti_Ranking.week(NFL.current_week).site(@site).exclude_day(@excluded_days).all
-        possibles = self.possible_lineups(ary)
-        
-        #DK is 1 PPR
-         return possibles.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
-    end
-    
-    def player_pool
-        Opti_Ranking.week(NFL.current_week).site(@site).exclude_day(@excluded_days).all
+       self.possible_lineups().sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
     end
 end

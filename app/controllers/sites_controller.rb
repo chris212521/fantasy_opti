@@ -8,6 +8,6 @@ class SitesController < ApplicationController
   end
   
   def update
-    NFL.update_week_projections
+    Util.update_NFL_week_projections
   end
 end
