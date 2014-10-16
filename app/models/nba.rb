@@ -16,8 +16,8 @@ class NBA
 
     @results = bbr_scrape_for_objects(last_name, first_name, 'https://www.kimonolabs.com/api/azhla1b0?apikey=771398b183d34e1ede4772328e8c311c')
     
-    @results.each do |r|
-      puts r.fga
+    @results.last(5) do |r|
+      puts r
     end
 
   end

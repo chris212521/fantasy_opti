@@ -3,7 +3,7 @@ FantasyOpti::Application.routes.draw do
   # See how all your routes lay out with "rake routes".
   
   match '/differences/:id',   to: 'rankings#price_differences',   via: 'get'
-  match 'optimal_lineup/:site',   to: 'rankings#optimal_lineup',   via: 'get'
+  match '/:league/optimal_lineup/:site',   to: 'rankings#optimal_lineup',   via: 'get'
   match '/admin',   to: 'sites#admin',   via: 'get'
   match '/update',   to: 'sites#update',   via: 'get'
   match '/test',   to: 'sites#index',   via: 'get'

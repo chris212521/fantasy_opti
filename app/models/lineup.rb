@@ -1,26 +1,24 @@
-class NFL_Lineup
-  attr_accessor :site, :max_salary
+class Lineup
+  attr_accessor :site, :max_salary, :league
   attr_reader :positions, :excluded_days, :players
-  FFNerd.api_key = "bm37zp5dfhjh"
-  @@supported_searchable_pos = [2,3,4]
-  #FFNerd.current_week
-  #FFNerd.schedule.first.gameDate[0,4]
   
-  def initialize( site=nil, pos=nil, max_salary=nil, excluded_days=nil )
-    @site = site
-    self.positions=(pos)
-    @max_salary = max_salary
-    self.excluded_days=(excluded_days)
+  def initialize( args )
+    @site = args[:site]
+    @max_salary = args[:max_salary]
+    @league = args[:league]
+    
+    self.positions=(args[:pos])
+    self.excluded_days=(args[:excluded_days])
     self.set_players
   end
   
-  def positions=(pos)
+  def positions=( pos )
     @positions = pos.collect { |element|
-          (element == "FLEX") ? NFL.flex_pos : element
+          (element == "FLEX") ? NFL.flex_pos : element #need to change this if NBA has flex...
           }
   end
   
-  def excluded_days=(a)
+  def excluded_days=( a )
     #a = Thurs, Mon
     if a.any?
         ed = []
@@ -33,35 +31,9 @@ class NFL_Lineup
   end
   
   def set_players
-     @players = Opti_Ranking.week(NFL.current_week).site(@site).exclude_day(@excluded_days).all
-  end
-  
-  def self.positions
-    @@positions
-  end
-  
-  def self.current_week
-    @@current_week
-  end
-  
-  def self.current_year
-    @@season_year
-  end
-  
-  def self.flex_pos
-    @@flex_pos
-  end
-  
-  def self.supported_searchable_pos
-    @@supported_searchable_pos
-  end
-  
-  def self.dk_positions
-    @@dk_positions
-  end
-  
-  def self.fd_positions
-    @@fd_positions
+    @league == 'NFL' ? current_week = NFL.current_week : current_week = nil #need some sort of NBA call here
+    
+     @players = Opti_Ranking.week(current_week).site(@site).exclude_day(@excluded_days).league(@league).all
   end
   
   def self.pos_to_array(position1, position2, position3=nil, position4=nil)
@@ -79,19 +51,23 @@ class NFL_Lineup
   def possible_lineups()
     #returns all possible combinations, with respect to parameters (salary, positions)
      possibles = []
-     groomed = []
+     legitimate = []
      
      @positions.each_with_index do |item, index|
-            index == 0 ? possibles = @players.select{|r| @positions[index].include?(r.position)} : possibles = possibles.product(@players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
+            if index == 0 
+              possibles = @players.select{|r| @positions[index].include?(r.position)} 
+            else 
+              possibles = possibles.product(@players.select{|r| @positions[index].include?(r.position)}).map(&:flatten)
+            end
         end
         
       possibles.each do |lineup|  
          #get players in order so we can use uniq later to filter dupes that were created in different order
          lineup = lineup.sort_by(&:player_name).sort_by {|o| @positions.flatten.index(o.position) || 99}
-         (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count) ? groomed << lineup : nil
+         (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count) ? legitimate << lineup : nil
         end
         
-        groomed
+        legitimate
   end
   
   def optimal_lineup()

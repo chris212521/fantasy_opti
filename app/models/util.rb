@@ -14,13 +14,16 @@ class Util
             Projection.create(player_name: p.name, player_id: p.playerId, position: p.position, team: p.team, std_proj: p.standard,
                               std_low_proj: p.standardLow, std_high_proj: p.standardHigh, ppr_proj: p.ppr, ppr_low_proj:  p.pprLow,
                               ppr_high_proj: p.pprHigh, injury: p.injury, practice_status: p.practiceStatus, game_status: p.gameStatus,
-                              last_update: p.lastUpdate, week: p.week, year: @@season_year)
+                              last_update: p.lastUpdate, week: p.week, year: NFL.current_year)
       end
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'FD\')')
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'DK\')')
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+@@current_week.to_s+','+@@season_year.to_s+', \'V\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_week.to_s+','+NFL.current_year.to_s+', \'FD\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_week.to_s+','+NFL.current_year.to_s+', \'DK\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_week.to_s+','+NFL.current_year.to_s+', \'V\')')
     end      
   end
   
+  def self.supported_sites
+    ['DK','FD','V']
+  end
   
 end

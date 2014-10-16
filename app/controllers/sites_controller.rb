@@ -1,6 +1,6 @@
 class SitesController < ApplicationController
   def index  
-    #NBA.bbr_p_adv_api('Durant','Kevin')
+    NBA.bbr_p_gl_api('Durant','Kevin')
   end
   
   def admin

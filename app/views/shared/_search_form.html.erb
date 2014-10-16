@@ -1,11 +1,11 @@
   <div class="container-fluid search-criteria">	
 
-	<form action="/optimal_lineup/<%= params[:site] %>" method="get" autocomplete="off">
+	<form action="/<%= params[:league] %>/optimal_lineup/<%= params[:site] %>" method="get" autocomplete="off">
 	  	  <div class="row"><h4><%= label_tag(:company_name, "Player Filters:") %></h4></div>
 	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary Available", class: "search-form-text-field" %></div>
 	  	  <div class="row"><%= label_tag(:company_name, "Positions Needed:") %>
 
-	<%= select_tag(:num_positions, options_for_select(NFL_Lineup.supported_searchable_pos, params[:num_positions]))%>
+	<%= select_tag(:num_positions, options_for_select(NFL.supported_searchable_pos, params[:num_positions]))%>
 </div>
 
 			<% if site == 'FD'%>

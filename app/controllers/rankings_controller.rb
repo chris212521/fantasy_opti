@@ -2,14 +2,20 @@ class RankingsController < ApplicationController
   
   def current_rankings
     FFNerd.api_key = "bm37zp5dfhjh"
-      @rankings = Ranking.position(NFL.groom_position(params[:id].upcase)).week(NFL.current_week).site(params[:site].upcase).top_ppd_ppr
+      @rankings = Ranking.position(Util.groom_position(params[:id].upcase)).week(NFL.current_week).site(params[:site].upcase).top_ppd_ppr
   end
   
   def optimal_lineup
     #check for params before processing
     if(params.has_key?(:salary) and params.has_key?(:position1))
-      @pos = NFL_Lineup.pos_to_array(params[:position1],params[:position2],params[:position3],params[:position4])
-      @lineups = NFL_Lineup.new(params[:site].upcase,@pos,params[:salary].to_i,[params[:thursday],params[:monday]]).optimal_lineup()
+      @pos = Lineup.pos_to_array(params[:position1],params[:position2],params[:position3],params[:position4])
+      @lineups = Lineup.new(
+                            site: params[:site].upcase,
+                            pos: @pos,
+                            max_salary: params[:salary].to_i,
+                            excluded_days: [params[:thursday],params[:monday]],
+                            league: params[:league].upcase
+                            ).optimal_lineup()
     end
   end
   
