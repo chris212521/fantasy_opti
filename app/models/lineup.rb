@@ -1,20 +1,20 @@
 class Lineup
-  attr_accessor :site, :max_salary, :league
-  attr_reader :positions, :excluded_days, :players
+  attr_accessor :site, :max_salary, :league, :players
+  attr_reader :positions, :excluded_days
   
   def initialize( args )
     @site = args[:site]
     @max_salary = args[:max_salary]
-    @league = args[:league]
+    @league =args[:league]
     
     self.positions=(args[:pos])
     self.excluded_days=(args[:excluded_days])
-    self.set_players
+    Player.set_players(self)
   end
   
   def positions=( pos )
     @positions = pos.collect { |element|
-          (element == "FLEX") ? NFL.flex_pos : element #need to change this if NBA has flex...
+          (element == "FLEX") ? @league.flex_pos : element #need to change this if NBA has flex...
           }
   end
   
@@ -28,12 +28,6 @@ class Lineup
      else
         @excluded_days = 'x'
     end
-  end
-  
-  def set_players
-    @league == 'NFL' ? current_week = NFL.current_week : current_week = nil #need some sort of NBA call here
-    
-     @players = Opti_Ranking.week(current_week).site(@site).exclude_day(@excluded_days).league(@league).all
   end
   
   def self.pos_to_array(position1, position2, position3=nil, position4=nil)
@@ -71,6 +65,6 @@ class Lineup
   end
   
   def optimal_lineup()
-       self.possible_lineups().sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
+       self.league.optimal_lineup(self.possible_lineups())
     end
 end

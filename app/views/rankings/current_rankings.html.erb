@@ -1,5 +1,8 @@
-<h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%= NFL.current_week%></h1>
+<h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%= Util.get_current_date(params[:league].upcase)%></h1>
 <div class="col-md-8 col-md-offset-2">
+<center><h3><% NFL.positions(params[:site].upcase).each do |name| %>
+									<a href="/rankings/<%=params[:site].upcase%>/<%= name %>"><%= name %></a>
+								<% end %></h3></center>
 <% if !@rankings.nil? %>
 		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings, ppr: true} %>
 <%end%>

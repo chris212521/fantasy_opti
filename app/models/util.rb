@@ -26,4 +26,16 @@ class Util
     ['DK','FD','V']
   end
   
+  def self.get_league_class( name )
+    if name == 'NFL'
+      NFL.new
+    elsif name == 'NBA'
+      NBA.new
+    end
+  end
+  
+  def self.get_current_date ( league )
+    get_league_class(league).current_date
+  end
+  
 end

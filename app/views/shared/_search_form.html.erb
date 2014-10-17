@@ -5,14 +5,9 @@
 	  	  <div class="row"><%= text_field_tag :salary, params[:salary], placeholder: "Salary Available", class: "search-form-text-field" %></div>
 	  	  <div class="row"><%= label_tag(:company_name, "Positions Needed:") %>
 
-	<%= select_tag(:num_positions, options_for_select(NFL.supported_searchable_pos, params[:num_positions]))%>
+	<%= select_tag(:num_positions, options_for_select(Util.get_league_class(params[:league].upcase).supported_searchable_pos, params[:num_positions]))%>
 </div>
-
-			<% if site == 'FD'%>
-				<% pos_list = NFL.fd_positions%>
-				<% else %>
-				<% pos_list = NFL.dk_positions%>
-			<% end %>
+				<% pos_list = Util.get_league_class(params[:league].upcase).positions(site)%>
 	  	  
 			<%= select_tag "position1", options_for_select(pos_list,params[:position1]) %>
 			<%= select_tag "position2", options_for_select(pos_list, if params[:position2].nil? then 'RB' else params[:position2] end) %>
