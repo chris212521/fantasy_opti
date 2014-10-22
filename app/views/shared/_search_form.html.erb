@@ -9,12 +9,19 @@
 </div>
 				<% pos_list = Util.get_league_class(params[:league].upcase).positions(site)%>
 	  	  
-			<%= select_tag "position1", options_for_select(pos_list,params[:position1]) %>
-			<%= select_tag "position2", options_for_select(pos_list, if params[:position2].nil? then 'RB' else params[:position2] end) %>
-			<%= select_tag "position3", options_for_select(pos_list, if params[:position3].nil? then 'WR' else params[:position3] end) %>
-			<%= select_tag "position4", options_for_select(pos_list, if params[:position4].nil? then 'TE' else params[:position4] end) %>
-			<div class="row"><%= check_box_tag 'thursday', 0, params[:thursday]%><span class="checkbox-text">Hide Thursday Games</span></div>
-			<div class="row"><%= check_box_tag 'monday', 0, params[:monday]%><span class="checkbox-text">Hide Monday Games</span></div>
+	  	  	<% if params[:league].upcase == 'NFL' %>
+				<%= select_tag "position1", options_for_select(pos_list,params[:position1]) %>
+				<%= select_tag "position2", options_for_select(pos_list, if params[:position2].nil? then 'RB' else params[:position2] end) %>
+				<%= select_tag "position3", options_for_select(pos_list, if params[:position3].nil? then 'WR' else params[:position3] end) %>
+				<%= select_tag "position4", options_for_select(pos_list, if params[:position4].nil? then 'TE' else params[:position4] end) %>
+				<div class="row"><%= check_box_tag 'thursday', 0, params[:thursday]%><span class="checkbox-text">Hide Thursday Games</span></div>
+				<div class="row"><%= check_box_tag 'monday', 0, params[:monday]%><span class="checkbox-text">Hide Monday Games</span></div>
+			<% else %>
+				<%= select_tag "position1", options_for_select(pos_list,params[:position1]) %>
+				<%= select_tag "position2", options_for_select(pos_list, if params[:position2].nil? then 'SG' else params[:position2] end) %>
+				<%= select_tag "position3", options_for_select(pos_list, if params[:position3].nil? then 'SF' else params[:position3] end) %>
+				<%= select_tag "position4", options_for_select(pos_list, if params[:position4].nil? then 'PF' else params[:position4] end) %>
+			<% end %>
 
 	<div class="col-md-12"> 
 	  <%= submit_tag("Search", :name => '', :class=>"btn btn-search") %>

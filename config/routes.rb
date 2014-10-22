@@ -5,9 +5,11 @@ FantasyOpti::Application.routes.draw do
   match '/:league/differences/:id',   to: 'rankings#price_differences',   via: 'get'
   match '/:league/optimal_lineup/:site',   to: 'rankings#optimal_lineup',   via: 'get'
   match '/admin',   to: 'sites#admin',   via: 'get'
-  match '/update',   to: 'sites#update',   via: 'get'
+  match '/nfl_update',   to: 'sites#nfl_update',   via: 'get'
+  match '/scrape_nba_daily',   to: 'sites#scrape_nba_daily',   via: 'get'
   match '/test',   to: 'sites#index',   via: 'get'
   match '/:league/rankings/:site/:id',   to: 'rankings#current_rankings',   via: 'get'
+  match '/:league/rolling/:id',   to: 'rankings#rolling_average',   via: 'get'
   
   
   root 'sites#admin'

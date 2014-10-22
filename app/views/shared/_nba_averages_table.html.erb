@@ -1,0 +1,42 @@
+<h3><strong>Results:</strong></h3>
+		<div class="table-responsive">
+		  <table id="results" class="tablesorter table-striped">
+		    <thead> <!-- tablesorter table-striped -->
+		    	<tr>
+		    		<th class="left-text">Player Name</th>
+		    		<th>Team</th>
+		    		<th>PPG</th>
+		    		<th>Assists</th>
+		    		<th>Rebounds</th>
+		    		<th>Minutes Played</th>
+		    		<th>FD Score</th>
+		    		<th>DK Score</th>
+		    	</tr>
+		    </thead>
+		    <tbody>
+		    	 <% table_data.each do |data| %>
+		      <tr>
+		      	<td class="left-text"><%= data.player_name %></b></td>
+		      		<td><%= data.team %></td>
+		      		<td><%= data.points %></td>
+		      		<td><%= data.assists %></td>
+		      		<td><%= data.trb %></td>
+		      		<td><%= data.minutes_played %></td>
+		      		<td><%= NBA.calc_fd_score(data) %></td>
+		      		<td><%= NBA.calc_dk_score(data) %></td>
+			      	
+		      </tr>
+		    <% end %>
+		    </tbody>
+		  </table>
+		</div>
+		
+<script>
+	$(document).ready( function () {
+    $('#results').DataTable( {
+    	"pageLength": 10,
+    	"order": [[ 2, "desc" ]]
+    	}	
+    );
+} );
+</script>

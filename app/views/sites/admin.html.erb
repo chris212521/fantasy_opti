@@ -1,7 +1,22 @@
 <h1>Admin Panel</h1>
 
-<form action="/update" method="get">
+<div class="container">
+<form action="/nfl_update" method="get">
 <center>
-<%= submit_tag("Update Projections", :name => 'update', :class=>"btn btn-search") %>
+<%= submit_tag("Update Projections", :name => '', :class=>"btn btn-search") %>
 </center>
 </form>
+
+
+<form action="/scrape_nba_daily" method="get">
+<center>
+<div class="row"><%= text_field_tag :month, params[:month], placeholder: "Month", class: "search-form-text-field" %>
+	<%= text_field_tag :day, params[:day], placeholder: "Day", class: "search-form-text-field" %>
+	<%= text_field_tag :year, params[:year], placeholder: "Year", class: "search-form-text-field" %>
+</div>
+<%= submit_tag("Scrape NBA Games", :name => '', :class=>"btn btn-search") %>
+</center>
+</form>
+
+
+</div>

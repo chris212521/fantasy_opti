@@ -34,8 +34,8 @@ class NFL
     end
   end
 
-  def optimal_lineup( lineups )
-    lineups.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
+  def optimal_lineup( lineup )
+     lineup.optimal_lineup = lineup.possible_lineups.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(20).uniq.first(10)
   end
   
 end

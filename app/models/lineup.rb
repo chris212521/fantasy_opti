@@ -1,6 +1,6 @@
 class Lineup
-  attr_accessor :site, :max_salary, :league, :players
-  attr_reader :positions, :excluded_days
+  attr_accessor :site, :max_salary, :league, :players, :optimal_lineup
+  attr_reader :positions, :excluded_days, :league_name
   
   def initialize( args )
     @site = args[:site]
@@ -10,12 +10,17 @@ class Lineup
     self.positions=(args[:pos])
     self.excluded_days=(args[:excluded_days])
     Player.set_players(self)
+    self.league.optimal_lineup(self)
   end
   
   def positions=( pos )
     @positions = pos.collect { |element|
-          (element == "FLEX") ? @league.flex_pos : element #need to change this if NBA has flex...
+          (element == "FLEX") ? @league.flex_pos : element
           }
+  end
+  
+  def league_name
+    self.league.league_name
   end
   
   def excluded_days=( a )
@@ -33,16 +38,10 @@ class Lineup
   def self.pos_to_array(position1, position2, position3=nil, position4=nil)
       p = []
       p.push(position1, position2, position3, position4)
-      p.reject!(&:nil?)
+      p.delete_if(&:nil?)
   end
   
-  def self.convert_flex_to_pos(positions)
-     positions.collect { |element|
-          (element == "FLEX") ? NFL.flex_pos : element
-          }
-  end
-  
-  def possible_lineups()
+  def possible_lineups
     #returns all possible combinations, with respect to parameters (salary, positions)
      possibles = []
      legitimate = []
@@ -63,8 +62,4 @@ class Lineup
         
         legitimate
   end
-  
-  def optimal_lineup()
-       self.league.optimal_lineup(self.possible_lineups())
-    end
 end

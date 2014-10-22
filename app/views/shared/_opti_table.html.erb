@@ -11,17 +11,17 @@
 		    	</tr>
 		    </thead>
 		    <tbody>
-		    	<% table_data.each do |lineup| %>
+		    	<% lineups.optimal_lineup.each do |lineup| %>
 		    	<tr>
 		    	 <% lineup.each do |player| %>
 		      		<td><%= player.player_name %> <small>(<%= format_game_teams(player).html_safe %>)</small></td>
 			      	<% end %>
 			      	
 			      	<td><%= lineup.sum(&:salary) %></td>
-				      	<% if ppr %>
+				      	<% if lineups.league_name  == 'NFL' %>
 				      		<td><%= lineup.sum(&:ppr_proj) %></td>
 				      	<% else %>
-				      		<td><%= lineup.sum(&:std_proj) %></td>
+				      		<td><%= lineup.sum(&:fd_score) %></td>
 				      	<% end %>
 		      </tr>
 		    <% end %>

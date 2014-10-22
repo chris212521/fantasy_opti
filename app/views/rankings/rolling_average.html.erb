@@ -1,0 +1,10 @@
+<h1><%=params[:id].upcase%> 5 Game Averages</h1>
+<div class="col-md-8 col-md-offset-2">
+<center><h3><% Util.get_league_class(params[:league].upcase).positions.each do |name| %>
+									<a href="/<%=params[:league].upcase%>/rolling/<%= name %>"><%= name %></a>
+								<% end %></h3></center>
+<% if !@stats.nil? %>
+	<%= render partial: "shared/nba_averages_table", locals: {table_data: @stats, ppr: true} %>
+<%end%>
+
+<br>

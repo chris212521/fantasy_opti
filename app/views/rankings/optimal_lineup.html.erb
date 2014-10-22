@@ -6,7 +6,7 @@
 	<%= render partial: "shared/search_form", locals: {site: params[:site].upcase} %>	
 	
 	<% if !@lineups.nil? %>
-		<%= render partial: "shared/opti_table", locals: {table_data: @lineups, ppr: true, positions: @pos} %>
+		<%= render partial: "shared/opti_table", locals: {lineups: @lineups, ppr: true, positions: @pos} %>
 	<%else%>
 		<h3>Select criteria for your lineup</h3>
 	<%end%>
