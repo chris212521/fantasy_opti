@@ -3,7 +3,7 @@ class NFL
   
   FFNerd.api_key = "bm37zp5dfhjh"
   @@current_year = 2014
-  @@current_date = 7 #week of season
+  @@current_date = 8 #week of season
   @@flex_pos = ['RB','WR','TE']
   @@positions = ['QB','RB','WR','TE','FLEX','K','DST']
   @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
