@@ -1,4 +1,4 @@
-<h1><%=params[:id].upcase%> Price Differences - Week <%=Util.get_current_date(params[:league].upcase)%></h1>
+<h1><%=params[:id].upcase%> Price Differences - Week <%=@league.current_date%></h1>
 
 <div class="col-md-8 col-md-offset-2">
 <% if !@diff.nil? %>

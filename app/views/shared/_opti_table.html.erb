@@ -3,7 +3,7 @@
 		  <table id="results" class="tablesorter table-striped">
 		    <thead> <!-- tablesorter table-striped -->
 		    	<tr>
-		    		<% positions.each do |data| %>
+		    		<% lineups.positions.each do |data| %>
 		    			<th><%= data %></th>
 		    		<% end %>
 		    			<th>Combined Salary</th>
@@ -33,7 +33,7 @@
 	$(document).ready( function () {
     $('#results').DataTable( {
     	"pageLength": 10,
-    	"order": [[ <%= positions.count + 1 %>, "desc" ]]
+    	"order": [[ <%= lineups.positions.count + 1 %>, "desc" ]]
     	}	
     );
 } );

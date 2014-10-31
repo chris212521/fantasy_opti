@@ -12,7 +12,6 @@ gem 'sprockets', '2.11.0'
 gem 'will_paginate'
 gem 'bootstrap-will_paginate'
 gem 'route_downcaser'
-gem 'newrelic_rpm'
 
 gem 'rest-client'
 gem 'json'

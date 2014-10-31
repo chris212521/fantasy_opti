@@ -7,8 +7,14 @@
 		    		<th>Salary</th>
 		    		<th>Projected Points</th>
 		    		<th>Points/$1,000</th>
-		    		<th>Matchup</th>
+		    		
+		    		<% if @league == NFL_Lineup %>
 		    		<th>Game Time</th>
+		    		<% elsif @league == NBA_Lineup %>
+		    		<th>Playing Time</th>
+		    		
+		    		<% end %>
+		    		<th>Matchup</th>
 		    	</tr>
 		    </thead>
 		    <tbody>
@@ -16,15 +22,21 @@
 		      <tr>
 		      	<td class="left-text"><%= data.player_name %></b></td>
 		      		<td><%= data.salary %></td>
-			      	<%if ppr %>
-			      		<td><%= data.ppr_proj %></td>
-			      		<td><%= data.ppd_ppr %></td>
-			      	<%else%>
-			      		<td><%= data.std_proj %></td>
-			      		<td><%= data.ppd_std %></td>
-			      	<%end%>
+			      	<% if @league == NFL_Lineup %>
+				      	<td><%= data.ppr_proj %></td>
+				      	<td><%= data.ppd_ppr %></td>
+				      	<td><%= data.game_date.strftime('%A, %b %d, %l:%M %p') %></td>
+			      	<% elsif @league == NBA_Lineup %>
+			      		<% if params[:site].upcase == 'FD'%>
+			      			<td><%= data.fd_score%></td>
+			      			<td><%= (data.fd_score / (data.salary / 1000)).round(2)%></td>
+			      		<% elsif params[:site].upcase == 'DK' %>
+			      			<td><%= data.dk_score%></td>
+			      			<td><%= (data.dk_score / (data.salary / 1000)).round(2)%></td>
+			      		<% end %>
+			      		<td><%= data.minutes_played%></td>
+			      	<% end %>
 			      	<td><%= format_game_teams(data).html_safe %></td>
-			      	<td><%= data.game_date.strftime('%A, %b %d, %l:%M %p') %></td>
 		      </tr>
 		    <% end %>
 		    </tbody>

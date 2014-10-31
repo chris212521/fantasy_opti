@@ -1,22 +1,20 @@
 class Util
-  def self.groom_position(pos, league)
-    pos.upcase == 'FLEX' ? pos = get_league_class(league).flex_pos : pos = pos.upcase
-  end
 
-  def self.supported_sites
-    ['DK','FD','V']
+  def self.nfl_supported_sites
+    [
+     ['DK', 'DraftKings'],
+     ['FD', 'FanDuel'],
+     ['V', 'Victiv']
+    ]
   end
   
-  def self.get_league_class( name )
-    if name == 'NFL'
-      NFL.new
-    elsif name == 'NBA'
-      NBA.new
+  def self.get_league_class( league )
+    puts league
+    if league == 'NFL'
+      NFL_Lineup
+    elsif league == 'NBA'
+      NBA_Lineup
     end
-  end
-  
-  def self.get_current_date ( league )
-    get_league_class(league).current_date
   end
   
 end

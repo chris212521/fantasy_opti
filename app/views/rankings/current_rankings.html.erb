@@ -1,13 +1,13 @@
-<h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%= Util.get_current_date(params[:league].upcase)%></h1>
+<h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%=@league.current_date%></h1>
 <div class="col-md-8 col-md-offset-2">
-<center><h3><% Util.get_league_class(params[:league].upcase).positions(params[:site].upcase).each do |name| %>
+<center><h3><% @league.site_positions(params[:site].upcase).each do |name| %>
 									<a href="/<%=params[:league].upcase%>/rankings/<%=params[:site].upcase%>/<%= name %>"><%= name %></a>
 								<% end %></h3></center>
 <% if !@rankings.nil? %>
 	<% if params[:league].upcase == 'NFL' %>
-		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings, ppr: true} %>
+		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings} %>
 		<% elsif params[:league].upcase == 'NBA'%>
-		<%= render partial: "shared/nba_rankings_table", locals: {table_data: @rankings, ppr: true} %>
+		<%= render partial: "shared/rankings_table", locals: {table_data: @rankings} %>
 	<%end%>
 <%end%>
 

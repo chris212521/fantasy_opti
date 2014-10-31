@@ -24,7 +24,7 @@ class BBR
           r.game_date = date
         end
       
-      NBA.save_game_logs(results)
+      NBA_Game_Log.save_game_logs(results)
     end
     
   end
@@ -60,7 +60,7 @@ class BBR
       x.opponent_team = x.opponent_team["text"]
     end
     
-    NBA.save_game_logs(@results)
+    NBA_Game_Log.save_game_logs(@results)
   end
   
   def self.player_advanced_stats(last_name, first_name)

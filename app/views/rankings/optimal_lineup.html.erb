@@ -1,4 +1,4 @@
-<h1>Optimal Lineups for <%=params[:site].upcase%> - Week <%= Util.get_current_date(params[:league].upcase)%></h1>
+<h1>Optimal Lineups for <%=params[:site].upcase%> - Week <%= @league.current_date%></h1>
 <br>
 
 
@@ -6,7 +6,7 @@
 	<%= render partial: "shared/search_form", locals: {site: params[:site].upcase} %>	
 	
 	<% if !@lineups.nil? %>
-		<%= render partial: "shared/opti_table", locals: {lineups: @lineups, ppr: true, positions: @pos} %>
+		<%= render partial: "shared/opti_table", locals: {lineups: @lineups, ppr: true} %>
 	<%else%>
 		<h3>Select criteria for your lineup</h3>
 	<%end%>
