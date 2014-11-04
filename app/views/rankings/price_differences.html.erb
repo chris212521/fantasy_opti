@@ -1,6 +1,10 @@
-<h1><%=params[:id].upcase%> Price Differences - Week <%=@league.current_date%></h1>
+<h1><%=params[:id].upcase%> Price Differences - <%=@league.current_date%></h1>
 
 <div class="col-md-8 col-md-offset-2">
+	<center><h3><% @league.standard_positions.each do |name| %>
+									<a href="/<%=params[:league].upcase%>/differences/<%= name %>"><%= name %></a>
+								<% end %></h3>
+	</center>
 <% if !@diff.nil? %>
 		<%= render partial: "shared/differences_table", locals: {table_data: @diff, ppr: true} %>
 <%end%>

@@ -33,11 +33,25 @@ class RankingsController < ApplicationController
   
   def price_differences
     @league = Util.get_league_class(params[:league].upcase)
-    @diff = Difference.position(@league.groom_position(params[:id].upcase)).week(@league.current_date).all
+    
+    if @league == NBA_Lineup
+        @diff = Difference.position(@league.groom_position(params[:id].upcase)).game_date(@league.current_date).all
+    elsif @league == NFL_Lineup
+        @diff = Difference.position(@league.groom_position(params[:id].upcase)).week(@league.current_date).all
+    end
+    
   end
   
   def rolling_average
     @stats = NBA_last_five_avg.position(params[:id].upcase)
+  end
+  
+  def nba_team_rankings
+    @team_rankings = NBA_Team_Ranking.all
+  end
+  
+  def nba_team
+    @team = NBA_Team_Ranking.team(params[:team].upcase).first
   end
 
 end

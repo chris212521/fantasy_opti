@@ -1,0 +1,53 @@
+<h3><strong>Results:</strong></h3>
+		<div class="table-responsive">
+		  <table id="results" class="tablesorter table-striped">
+		    <thead> <!-- tablesorter table-striped -->
+		    	<tr>
+		    		<th class="left-text">FG</th>
+		    		<th class="left-text">Opp FG</th>
+		    		<th class="left-text">3P</th>
+		    		<th class="left-text">Opp 3P</th>
+		    		<th class="left-text">FTA</th>
+		    		<th class="left-text">Opp FTA</th>
+		    		<th class="left-text">Rebounding</th>
+		    		<th class="left-text">Opp Rebounding</th>
+		    		<th class="left-text">Assists/TOV</th>
+		    		<th class="left-text">Opp Assists/TOV</th>
+		    		<th class="left-text">Steals/Blocks</th>
+		    		<th class="left-text">Opp Steals/Blocks</th>
+		    		<th class="left-text">Points/Opp Pts</th>
+		    		<th class="left-text">PF/Opp PF</th>
+		    	</tr>
+		    </thead>
+		    <tbody>
+		    	 <% table_data.each do |data| %>
+		      <tr>
+		      	<td class="left-text"><%= data.fg_pct.to_s %> <b><%='('+data.fg_pct_rank.to_s+')' %></b></td>
+		      	<td class="left-text"><%= data.opp_fg_pct.to_s %> <b><%= '('+data.opp_fg_pct_rank.to_s+')' %></b></td>
+		      	<td class="left-text"><%= data.tpm.to_s + '/' + data.tpa.to_s + ' - ' + data.tp_pct.to_s %> <b> <%= '('+data.tp_pct_rank.to_s+')' %></b></td>
+		      	<td class="left-text"><%= data.opp_tpm.to_s + '/' + data.opp_tpa.to_s + ' - ' + data.opp_tp_pct.to_s %> <b><%= '('+data.opp_tp_pct_rank.to_s+')' %></b></td>
+		      	<td class="left-text"><b><%= data.fta.to_s %></b></td>
+		      	<td class="left-text"><b><%= data.opp_fta.to_s %></b></td>
+		      	<td class="left-text">O:<b> <%= '('+data.orb.to_s+')' %></b> D: <b> <%= '('+data.drb.to_s+')' %></b>T: <b> <%= '('+data.trb.to_s+')' %></b></td>
+		      	<td class="left-text">O:<b> <%= '('+data.opp_orb.to_s+')' %></b> D: <b> <%= '('+data.opp_drb.to_s+')' %></b>T: <b> <%= '('+data.opp_trb.to_s+')' %></b></td>
+		      	<td class="left-text"><b> <%= data.assists.to_s %></b> / <b> <%= data.tov.to_s %></b></td>
+		      	<td class="left-text"><b> <%= data.opp_assists.to_s %></b> / <b> <%= data.opp_tov.to_s %></b></td>
+		      	<td class="left-text"><b> <%= data.steals.to_s %></b> / <b> <%= data.blocks.to_s %></b></td>
+		      	<td class="left-text"><b> <%= data.opp_steals.to_s %></b> / <b> <%= data.opp_blocks.to_s %></b></td>
+		        <td class="left-text"><b> <%= data.points.to_s %></b> / <b> <%= data.opp_points.to_s %></b></td>
+		        <td class="left-text"><b> <%= data.pf.to_s %></b> / <b> <%= data.opp_pf.to_s %></b></td>
+		      </tr>
+		    <% end %>
+		    </tbody>
+		  </table>
+		</div>
+		
+<script>
+	$(document).ready( function () {
+    $('#results').DataTable( {
+    	"pageLength": 10,
+    	"order": [[ 2, "desc" ]]
+    	}	
+    );
+} );
+</script>

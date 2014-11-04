@@ -1,11 +1,12 @@
 class NBA_Lineup < Lineup
-    cattr_reader :flex_pos, :current_date, :current_year, :supported_searchable_pos, :dk_positions, :fd_positions, :league_name
+    cattr_reader :flex_pos, :current_date, :current_year, :supported_searchable_pos, :dk_positions, :fd_positions, :league_name, :standard_positions
   
   @@league_name = 'NBA'
   @@dk_positions = ['PG','SG','SF','PF','C','G','F','UTIL']
   @@fd_positions = ['PG','SG','SF','PF','C']
-  @@supported_searchable_pos = [2,3,4]
-  @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 10, 28)
+  @@standard_positions = ['PG','SG','SF','PF','C']
+  @@supported_searchable_pos = [2,3,4,5,6]
+  @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 11, 1).strftime("%d/%m/%Y")
   
   def self.calc_fd_score( p )
     score = p.tpm*3 + (p.fgm-p.tpm)*2 + p.ftm + p.trb*1.2 + p.assists*1.5 + p.blocks*2 + p.steals*2 - p.tov

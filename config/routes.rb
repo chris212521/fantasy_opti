@@ -7,9 +7,13 @@ FantasyOpti::Application.routes.draw do
   match '/admin',   to: 'sites#admin',   via: 'get'
   match '/nfl_update',   to: 'sites#nfl_update',   via: 'get'
   match '/scrape_nba_daily',   to: 'sites#scrape_nba_daily',   via: 'get'
+  match '/scrape_nba_ir',   to: 'sites#scrape_nba_ir',   via: 'get'
+  match '/scrape_nba_team_ranks',   to: 'sites#scrape_nba_team_ranks',   via: 'get'
   match '/test',   to: 'sites#index',   via: 'get'
   match '/:league/rankings/:site/:id',   to: 'rankings#current_rankings',   via: 'get'
   match '/:league/rolling/:id',   to: 'rankings#rolling_average',   via: 'get'
+  match '/nba_team_rankings',   to: 'rankings#nba_team_rankings',   via: 'get'
+  match '/nba_team/:team',   to: 'rankings#nba_team',   via: 'get'
   
   
   root 'sites#admin'

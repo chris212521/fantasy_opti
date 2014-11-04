@@ -1,20 +1,36 @@
 <h1>Admin Panel</h1>
 
 <div class="container">
-<form action="/nfl_update" method="get">
+<form action="/nfl_update" method="get" autocomplete="off">
 <center>
 <%= submit_tag("Update Projections", :name => '', :class=>"btn btn-search") %>
 </center>
 </form>
 
 
-<form action="/scrape_nba_daily" method="get">
+<form action="/scrape_nba_daily" method="get" autocomplete="off">
 <center>
-<div class="row"><%= text_field_tag :month, params[:month], placeholder: "Month", class: "search-form-text-field" %>
+<div class="container"><%= text_field_tag :month, params[:month], placeholder: "Month", class: "search-form-text-field" %>
 	<%= text_field_tag :day, params[:day], placeholder: "Day", class: "search-form-text-field" %>
 	<%= text_field_tag :year, params[:year], placeholder: "Year", class: "search-form-text-field" %>
 </div>
 <%= submit_tag("Scrape NBA Games", :name => '', :class=>"btn btn-search") %>
+</center>
+</form>
+
+<form action="/scrape_nba_ir" method="get" autocomplete="off">
+<center>
+<div class="container">
+<%= submit_tag("Scrape NBA Injury Report", :name => '', :class=>"btn btn-search") %>
+</div>
+</center>
+</form>
+
+<form action="/scrape_nba_team_ranks" method="get" autocomplete="off">
+<center>
+<div class="container"><%= text_field_tag :team, params[:team], placeholder: "Team Code", class: "search-form-text-field" %>
+</div>
+<%= submit_tag("Scrape NBA Team Rankings", :name => '', :class=>"btn btn-search") %>
 </center>
 </form>
 

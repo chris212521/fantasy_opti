@@ -1,0 +1,5 @@
+<h1>NBA Team Rankings For Today</h1>
+
+<% if !@team_rankings.nil? %>
+		<%= render partial: "shared/nba_team_rankings_table", locals: {table_data: @team_rankings} %>
+<%end%>

@@ -1,6 +1,6 @@
 <h1><%=params[:id].upcase%> Rankings for <%=params[:site].upcase%> - Week <%=@league.current_date%></h1>
 <div class="col-md-8 col-md-offset-2">
-<center><h3><% @league.site_positions(params[:site].upcase).each do |name| %>
+<center><h3><% @league.standard_positions.each do |name| %>
 									<a href="/<%=params[:league].upcase%>/rankings/<%=params[:site].upcase%>/<%= name %>"><%= name %></a>
 								<% end %></h3></center>
 <% if !@rankings.nil? %>

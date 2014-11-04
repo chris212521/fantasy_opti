@@ -9,14 +9,20 @@ class Admin
   end
   
   def self.scrape_NBA_daily_games(month, day, year=2014)
-    puts month
-    puts day
-    puts year
     BBR.daily_boxscores_links(month, day, year)
+  end
+  
+  def self.scrape_NBA_IR
+    BBR.injury_report_scraper
+  end
+  
+  def self.nba_team_rankings( team )
+    BBR.team_ranking_scraper( team )
   end
   
   def self.update_NFL_week_projections(num=nil)
     #these are special for FFN API
+    FFNerd.api_key = "bm37zp5dfhjh"
     positions = ['QB','RB','WR','TE','K','DEF']
     
       positions.each do |pos|
