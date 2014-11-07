@@ -5,14 +5,14 @@ class NBA_Lineup < Lineup
   @@dk_positions = ['PG','SG','SF','PF','C','G','F','UTIL']
   @@fd_positions = ['PG','SG','SF','PF','C']
   @@standard_positions = ['PG','SG','SF','PF','C']
-  @@supported_searchable_pos = [2,3,4,5,6]
+  @@supported_searchable_pos = [2,3,4,5,6,7,8]
   @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 11, 1).strftime("%d/%m/%Y")
   
   def self.calc_fd_score( p )
     score = p.tpm*3 + (p.fgm-p.tpm)*2 + p.ftm + p.trb*1.2 + p.assists*1.5 + p.blocks*2 + p.steals*2 - p.tov
   end
   
-  def calc_dk_score( p )
+  def self.calc_dk_score( p )
     score = p.points + p.tpm/2 + p.trb*1.25 + p.assists*1.5 + p.steals*2 + p.blocks*2 -p.tov/2
     
     dbl_check = 0
@@ -36,10 +36,17 @@ class NBA_Lineup < Lineup
   def optimal_lineup
 
     if site == 'DK'
-      optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:ppd_dk) }.reverse.first(20).uniq.first(10)
-    elsif site == 'FD'
-      optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:ppd_fd) }.reverse.first(20).uniq.first(10)
+      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(20).uniq.first(10)
+    elsif site == 'FD'      
+      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(20).uniq.first(10)
     end
+    
+  end
+  
+  def perfect_lineup()
+
+      @players = NBA_Best.site(@site).day('1/11/2014').all
+      @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
     
   end
   

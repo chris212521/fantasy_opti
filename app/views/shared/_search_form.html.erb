@@ -22,7 +22,9 @@
 				<%= select_tag "position3", options_for_select(pos_list, if params[:position3].nil? then 'SF' else params[:position3] end) %>
 				<%= select_tag "position4", options_for_select(pos_list, if params[:position4].nil? then 'PF' else params[:position4] end) %>
 				<%= select_tag "position5", options_for_select(pos_list, if params[:position5].nil? then 'C' else params[:position5] end) %>
-				<%= select_tag "position6", options_for_select(pos_list, if params[:position6].nil? then 'PG' else params[:position6] end) %>
+				<%= select_tag "position6", options_for_select(pos_list, if params[:position6].nil? then 'SG' else params[:position6] end) %>
+				<%= select_tag "position7", options_for_select(pos_list, if params[:position7].nil? then 'SF' else params[:position7] end) %>
+				<%= select_tag "position8", options_for_select(pos_list, if params[:position8].nil? then 'PF' else params[:position8] end) %>
 			<% end %>
 
 	<div class="col-md-12"> 
@@ -35,27 +37,37 @@
 $(function(){
     $('#num_positions').change(function() {
         var selectValue = $(this).val();
-        if (selectValue > 5){
+        if (selectValue > 7){
+        	$('#position8,#position7,#position6,#position5,#position3,#position4').show();
+         	$('#position8,#position7,#position6,#position5,#position3,#position4').removeClass('toBeRemoved');
+        }else if (selectValue > 6){
+        	$('#position7,#position6,#position5,#position3,#position4').show();
+         	$('#position7,#position6,#position5,#position3,#position4').removeClass('toBeRemoved');
+         	$('#position8').hide();
+         	$('#position8').addClass('toBeRemoved');
+        }else if (selectValue > 5){
         	$('#position6,#position5,#position3,#position4').show();
          	$('#position6,#position5,#position3,#position4').removeClass('toBeRemoved');
+         	$('#position8,#position7').hide();
+         	$('#position8,#position7').addClass('toBeRemoved');
         }else if (selectValue > 4){
         	$('#position3,#position4,#position5').show();
          	$('#position3,#position4,#position5').removeClass('toBeRemoved');
-         	$('#position6').hide();
-         	$('#position6').addClass('toBeRemoved');
+         	$('#position8,#position7,#position6').hide();
+         	$('#position8,#position7,#position6').addClass('toBeRemoved');
         }else if (selectValue > 3){
          	$('#position3,#position4').show();
          	$('#position3,#position4').removeClass('toBeRemoved');
-         	$('#position6,#position5').hide();
-         	$('#position6,#position5').addClass('toBeRemoved');
+         	$('#position8,#position7,#position6,#position5').hide();
+         	$('#position8,#position7,#position6,#position5').addClass('toBeRemoved');
         }else if (selectValue > 2){
         	$('#position3').show();
         	$('#position3').removeClass('toBeRemoved');
-         	$('#position6,#position5,#position4').hide();
-         	$('#position6,#position5,#position4').addClass('toBeRemoved');
+         	$('#position8,#position7,#position6,#position5,#position4').hide();
+         	$('#position8,#position7,#position6,#position5,#position4').addClass('toBeRemoved');
         }else if (selectValue > 1){
-         	$('#position6,#position5,#position4,#position3').hide();
-         	$('#position6,#position5,#position4,#position3').addClass('toBeRemoved');
+         	$('#position8,#position7,#position6,#position5,#position4,#position3').hide();
+         	$('#position8,#position7,#position6,#position5,#position4,#position3').addClass('toBeRemoved');
         }
     });
 });

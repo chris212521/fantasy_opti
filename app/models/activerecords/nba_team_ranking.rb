@@ -3,9 +3,9 @@ class NBA_Team_Ranking < ActiveRecord::Base
   default_scope {where("(team IN (SELECT awayteam FROM nba_schedule WHERE game_date = TO_DATE(?, 'DD/MM/YYYY')) OR team IN (SELECT hometeam FROM nba_schedule WHERE game_date = TO_DATE(?, 'DD/MM/YYYY')))", NBA_Lineup.current_date, NBA_Lineup.current_date )}
   
   def self.update_ranking( rankings )
+    NBA_Team_Ranking.delete_all
+    
     rankings.each do |d|
-      NBA_Team_Ranking.delete_all(team: d[:team])
-      
             NBA_Team_Ranking.create(
                                   team: d[:team],
                                   fga_rank: d[:fga_rank],

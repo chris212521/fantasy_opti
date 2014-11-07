@@ -14,7 +14,7 @@
 		    	<% lineups.optimal_lineup.each do |lineup| %>
 		    	<tr>
 		    	 <% lineup.each do |player| %>
-		      		<td><%= player.player_name %> <small>(<%= format_game_teams(player).html_safe %>)</small></td>
+		      		<td><%= player.player_name %> <small>(<%= format_game_teams(player, @league).html_safe %>)</small></td>
 			      	<% end %>
 			      	
 			      	<td><%= lineup.sum(&:salary) %></td>

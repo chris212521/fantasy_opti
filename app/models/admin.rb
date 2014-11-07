@@ -32,11 +32,11 @@ class Admin
             Projection.create(player_name: p.name, player_id: p.playerId, position: p.position, team: p.team, std_proj: p.standard,
                               std_low_proj: p.standardLow, std_high_proj: p.standardHigh, ppr_proj: p.ppr, ppr_low_proj:  p.pprLow,
                               ppr_high_proj: p.pprHigh, injury: p.injury, practice_status: p.practiceStatus, game_status: p.gameStatus,
-                              last_update: p.lastUpdate, week: p.week, year: NFL.current_year)
+                              last_update: p.lastUpdate, week: p.week, year: NFL_Lineup.current_year)
       end
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_date.to_s+','+NFL.current_year.to_s+', \'FD\')')
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_date.to_s+','+NFL.current_year.to_s+', \'DK\')')
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL.current_date.to_s+','+NFL.current_year.to_s+', \'V\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'FD\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'DK\')')
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'V\')')
     end      
   end
 end

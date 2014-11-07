@@ -43,7 +43,7 @@
 			      		<td><%= data.tpm.to_s + '/' + data.tpa.to_s%></td>
 			      		<td><%= data.injury_type.to_s + ' - ' + data.injury_note.to_s%></td>
 			      	<% end %>
-			      	<td><%= format_game_teams(data).html_safe %></td>
+			      	<td><%= format_game_teams(data, @league).html_safe %></td>
 		      </tr>
 		    <% end %>
 		    </tbody>

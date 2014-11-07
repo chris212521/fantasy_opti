@@ -16,7 +16,7 @@ class RankingsController < ApplicationController
       if @league == NBA_Lineup
         @lineups = NBA_Lineup.new(
                             site: params[:site].upcase,
-                            pos: [params[:position1],params[:position2],params[:position3],params[:position4]],
+                            pos: [params[:position1],params[:position2],params[:position3],params[:position4],params[:position5],params[:position6],params[:position7],params[:position8]],
                             max_salary: params[:salary].to_i
                             )
       elsif @league == NFL_Lineup
@@ -53,5 +53,14 @@ class RankingsController < ApplicationController
   def nba_team
     @team = NBA_Team_Ranking.team(params[:team].upcase).first
   end
+  
+  def perfect_lineup
+   @perfect_lineup = NBA_Lineup.new(
+                    site: 'FD',#params[:site].upcase,
+                    pos: ['PG','PG','SG','SG','SF','SF','PF','PF','C'],
+                    max_salary: 60000#params[:salary].to_i
+                   ).perfect_lineup
+      puts @perfect_lineup
+    end
 
 end

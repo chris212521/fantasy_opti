@@ -35,6 +35,8 @@ class BBR
         team_code = 'NO' #modify to match how we store it elsewhere
       elsif team_code == 'CHO'
         team_code = 'CHA'
+      elsif team_code == 'PHO'
+        team_code = 'PHX'
       end
 
         vals = {}

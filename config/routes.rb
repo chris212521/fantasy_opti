@@ -14,6 +14,7 @@ FantasyOpti::Application.routes.draw do
   match '/:league/rolling/:id',   to: 'rankings#rolling_average',   via: 'get'
   match '/nba_team_rankings',   to: 'rankings#nba_team_rankings',   via: 'get'
   match '/nba_team/:team',   to: 'rankings#nba_team',   via: 'get'
+  match '/nba/perfect_lineup/:site',   to: 'rankings#perfect_lineup',   via: 'get'
   
   
   root 'sites#admin'
