@@ -51,7 +51,7 @@ class RankingsController < ApplicationController
   end
   
   def nba_team
-    @team = NBA_Team_Ranking.team(params[:team].upcase).first
+    @team = NBA_Team_Ranking.unscoped.team(params[:team].upcase).first
   end
   
   def perfect_lineup
@@ -60,7 +60,6 @@ class RankingsController < ApplicationController
                     pos: ['PG','PG','SG','SG','SF','SF','PF','PF','C'],
                     max_salary: 60000#params[:salary].to_i
                    ).perfect_lineup
-      puts @perfect_lineup
     end
 
 end

@@ -23,7 +23,7 @@ class NBA_Game_Log < ActiveRecord::Base
                                   steals: x.steals,
                                   blocks: x.blocks,
                                   tov: x.tov,
-                                  #pf: x.pf||=nil,
+                                  pf: x.pf||=nil,
                                   points: x.points
                                   #game_score: x.game_score||=nil
                                   )

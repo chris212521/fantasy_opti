@@ -37,7 +37,7 @@
 			      			<td><%= data.dk_score%></td>
 			      			<td><%= (data.dk_score / (data.salary / 1000)).round(2)%></td>
 			      		<% end %>
-			      		<td><%= data.minutes_played%></td>
+			      		<td><%= data.minutes_played[/\:\d+\:\d+/].split(/^:/)[1]%></td>
 			      		<td><%= data.fgm.to_s + '/' + data.fga.to_s%></td>
 			      		<td><%= data.ftm.to_s + '/' + data.fta.to_s%></td>
 			      		<td><%= data.tpm.to_s + '/' + data.tpa.to_s%></td>

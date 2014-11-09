@@ -31,9 +31,7 @@ class BBR
       html = 'http://www.basketball-reference.com/teams/'+team_code+'/2015.html'
       doc = Nokogiri::HTML(open(html))
       
-      if team_code == 'NOP'
-        team_code = 'NO' #modify to match how we store it elsewhere
-      elsif team_code == 'CHO'
+      if team_code == 'CHO'
         team_code = 'CHA'
       elsif team_code == 'PHO'
         team_code = 'PHX'

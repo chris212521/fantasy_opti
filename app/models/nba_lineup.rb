@@ -9,7 +9,7 @@ class NBA_Lineup < Lineup
   @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 11, 1).strftime("%d/%m/%Y")
   
   def self.calc_fd_score( p )
-    score = p.tpm*3 + (p.fgm-p.tpm)*2 + p.ftm + p.trb*1.2 + p.assists*1.5 + p.blocks*2 + p.steals*2 - p.tov
+    score = p.points + p.trb*1.2 + p.assists*1.5 + p.blocks*2 + p.steals*2 - p.tov
   end
   
   def self.calc_dk_score( p )
