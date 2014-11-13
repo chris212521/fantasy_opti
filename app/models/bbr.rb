@@ -24,10 +24,14 @@ class BBR
     
   end
   
-  def self.team_ranking_scraper(team_codes)
+  def self.team_ranking_scraper
+    sql = "SELECT awayteam, hometeam FROM nba_schedule WHERE game_date = TO_DATE('"+NBA_Lineup.current_date+"', 'DD/MM/YYYY')"
+    records_array = ActiveRecord::Base.connection.execute(sql)
+
     rankings = []
-    arr = team_codes[1..-2].split(',').collect! {|n| n.to_s}
-    arr.each do |team_code|
+    # old way - arr = team_codes[1..-2].split(',').collect! {|n| n.to_s}
+    records_array.values.flatten.each do |team_code|
+      puts team_code
       html = 'http://www.basketball-reference.com/teams/'+team_code+'/2015.html'
       doc = Nokogiri::HTML(open(html))
       

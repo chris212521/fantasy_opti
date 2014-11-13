@@ -28,8 +28,6 @@
 
 <form action="/scrape_nba_team_ranks" method="get" autocomplete="off">
 <center>
-<div class="container"><%= text_field_tag :team, params[:team], placeholder: "Team Code", class: "search-form-text-field" %>
-</div>
 <%= submit_tag("Scrape NBA Team Rankings", :name => '', :class=>"btn btn-search") %>
 </center>
 </form>

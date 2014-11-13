@@ -36,22 +36,25 @@ class NBA_Lineup < Lineup
   def optimal_lineup
 
     if site == 'DK'
-      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(20).uniq.first(10)
+      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(40).uniq.first(20)
     elsif site == 'FD'      
-      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(20).uniq.first(10)
+      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(40).uniq.first(20)
     end
     
   end
   
-  def perfect_lineup()
-
-      @players = NBA_Best.site(@site).day('1/11/2014').all
-      @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
-    
+  def perfect_lineup
+      @players = NBA_Day_Best.site(@site).day(Date.yesterday.strftime("%d/%m/%Y"))
+      
+      if site == 'DK'
+        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)
+      elsif site == 'FD'      
+        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
+    end
   end
   
   def set_players
-    @players = NBA_Ranking.site(@site).all
+    @players = NBA_Ranking.site(@site).min_fd_score(10)
   end
   
   def self.rankings( args )

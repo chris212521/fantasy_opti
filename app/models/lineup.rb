@@ -47,17 +47,28 @@ class Lineup
      legitimate = []
      
      @working_pos.each_with_index do |item, index|
-            if index == 0 
+            if index == 0
+              puts item
               possibles = @players.select{|r| @working_pos[index].include?(r.position)} 
+              puts possibles.count
             else 
+              puts item
               possibles = possibles.product(@players.select{|r| @working_pos[index].include?(r.position)}).map(&:flatten)
+              puts possibles.count
+              #delete now so we don't need to create more lineups than needed
+              if index.odd?
+                possibles.delete_if {|x| x.uniq.count != x.count }
+                puts possibles.count
+              end
+              
+
             end
         end
         
       possibles.each do |lineup|  
          #get players in order so we can use uniq later to filter dupes that were created in different order
          lineup = lineup.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}
-         (lineup.sum(&:salary) <= @max_salary) and (lineup.uniq.count == lineup.count) ? legitimate << lineup : nil
+         (lineup.sum(&:salary) <= @max_salary) ? legitimate << lineup : nil # and (lineup.uniq.count == lineup.count)
         end
         
         legitimate

@@ -13,7 +13,7 @@ class SitesController < ApplicationController
   end
   
   def scrape_nba_team_ranks
-    Admin.nba_team_rankings(params[:team])
+    Admin.nba_team_rankings
   end
   
   def scrape_nba_daily

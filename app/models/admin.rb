@@ -1,9 +1,5 @@
 class Admin
   
-  def self.update_NFL_weekly_projections( week=nil )
-    Util.update_NFL_week_projections(week)
-  end
-  
   def self.scrape_NBA_player_games(last_name, first_name, games=nil)
     BBR.download_player_gamelog(last_name, first_name, games)
   end
@@ -16,8 +12,8 @@ class Admin
     BBR.injury_report_scraper
   end
   
-  def self.nba_team_rankings( team )
-    BBR.team_ranking_scraper( team )
+  def self.nba_team_rankings
+    BBR.team_ranking_scraper
   end
   
   def self.update_NFL_week_projections(num=nil)
@@ -34,9 +30,9 @@ class Admin
                               ppr_high_proj: p.pprHigh, injury: p.injury, practice_status: p.practiceStatus, game_status: p.gameStatus,
                               last_update: p.lastUpdate, week: p.week, year: NFL_Lineup.current_year)
       end
+     end
     ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'FD\')')
     ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'DK\')')
-    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'V\')')
-    end      
+    ActiveRecord::Base.connection.execute('SELECT update_rankings('+NFL_Lineup.current_date.to_s+','+NFL_Lineup.current_year.to_s+', \'V\')')   
   end
 end

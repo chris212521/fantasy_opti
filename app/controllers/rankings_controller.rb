@@ -55,11 +55,19 @@ class RankingsController < ApplicationController
   end
   
   def perfect_lineup
+    if params[:site].upcase == 'FD'
+      positions = ['SF','SF','PG','PG','SG','SG','PF','PF','C']
+      salary = 60000
+    elsif params[:site].upcase == 'DK'
+      positions = ['PG','G','PG','SG','F','SF','PF','C'] #['PG','SG','SF','PF','C','G','F','UTIL']
+      salary = 50000
+    end
+    
    @perfect_lineup = NBA_Lineup.new(
-                    site: 'FD',#params[:site].upcase,
-                    pos: ['PG','PG','SG','SG','SF','SF','PF','PF','C'],
-                    max_salary: 60000#params[:salary].to_i
-                   ).perfect_lineup
+                    site: params[:site].upcase,
+                    pos: positions,
+                    max_salary: salary
+                   ).perfect_lineup.flatten
     end
 
-end
+end  
