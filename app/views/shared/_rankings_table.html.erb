@@ -36,6 +36,10 @@
 			      		<% elsif params[:site].upcase == 'DK' %>
 			      			<td><%= data.dk_score%></td>
 			      			<td><%= (data.dk_score / (data.salary / 1000)).round(2)%></td>
+			      		<% elsif params[:site].upcase == 'V' %>
+			      			<%v_score = NBA_Lineup.calc_v_score(data)%>
+			      			<td><%= v_score%></td>
+			      			<td><%= (v_score / (data.salary / 1000)).round(2)%></td>
 			      		<% end %>
 			      		<td><%= data.minutes_played[/\:\d+\:\d+/].split(/^:/)[1]%></td>
 			      		<td><%= data.fgm.to_s + '/' + data.fga.to_s%></td>

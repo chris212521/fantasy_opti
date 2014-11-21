@@ -42,10 +42,6 @@ class RankingsController < ApplicationController
     
   end
   
-  def rolling_average
-    @stats = NBA_last_five_avg.position(params[:id].upcase)
-  end
-  
   def nba_team_rankings
     @team_rankings = NBA_Team_Ranking.all
   end

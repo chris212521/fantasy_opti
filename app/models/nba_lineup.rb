@@ -1,9 +1,10 @@
 class NBA_Lineup < Lineup
-    cattr_reader :flex_pos, :current_date, :current_year, :supported_searchable_pos, :dk_positions, :fd_positions, :league_name, :standard_positions
+    cattr_reader :flex_pos, :current_date, :current_year, :supported_searchable_pos, :v_positions, :dk_positions, :fd_positions, :league_name, :standard_positions
   
   @@league_name = 'NBA'
   @@dk_positions = ['PG','SG','SF','PF','C','G','F','UTIL']
   @@fd_positions = ['PG','SG','SF','PF','C']
+  @@v_positions = ['C','G','F']
   @@standard_positions = ['PG','SG','SF','PF','C']
   @@supported_searchable_pos = [2,3,4,5,6,7,8]
   @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 11, 1).strftime("%d/%m/%Y")
@@ -33,6 +34,10 @@ class NBA_Lineup < Lineup
     
   end
   
+  def self.calc_v_score( p )
+    score = p.points + p.trb*1.25 + p.assists*1.25 + p.blocks*2 + p.steals*2 - (p.tov/2)
+  end
+  
   def optimal_lineup
 
     if site == 'DK'
@@ -44,7 +49,7 @@ class NBA_Lineup < Lineup
   end
   
   def perfect_lineup
-      @players = NBA_Day_Best.site(@site).day(Date.yesterday.strftime("%d/%m/%Y"))
+      @players = NBA_Day_Best.site(@site).day(Time.new(2014,11,18).strftime("%d/%m/%Y"))#Date.yesterday.strftime("%d/%m/%Y"))
       
       if site == 'DK'
         @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)
@@ -58,13 +63,19 @@ class NBA_Lineup < Lineup
   end
   
   def self.rankings( args )
-     NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase)
+    if args[:site].upcase == 'V'
+      NBA_Ranking.position((args[:position].upcase)).site(args[:site].upcase)
+    else
+      NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase)
+    end
+     
   end
   
   def self.supported_sites
     [
      ['DK', 'DraftKings'],
-     ['FD', 'FanDuel']
+     ['FD', 'FanDuel'],
+     ['V', 'Victiv']
     ]
   end
   

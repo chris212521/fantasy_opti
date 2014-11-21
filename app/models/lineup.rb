@@ -24,7 +24,7 @@ class Lineup
      elsif site == 'FD'
        fd_positions
      elsif site == 'V'
-       dk_positions
+       v_positions
     end
   end
   
@@ -33,6 +33,8 @@ class Lineup
        dk_positions
      elsif site == 'FD'
        fd_positions
+     elsif site == 'FD'
+       v_positions
     end
   end
   
@@ -44,33 +46,40 @@ class Lineup
   def possible_lineups
     #returns all possible combinations, with respect to parameters (salary, positions)
      possibles = []
-     legitimate = []
      
-     @working_pos.each_with_index do |item, index|
+     btime = Time.now
+     @working_pos.each_with_index do |pos, index|
             if index == 0
-              puts item
-              possibles = @players.select{|r| @working_pos[index].include?(r.position)} 
+              puts pos
+              possibles = @players.select{|r| pos.include?(r.position)} 
               puts possibles.count
             else 
-              puts item
-              possibles = possibles.product(@players.select{|r| @working_pos[index].include?(r.position)}).map(&:flatten)
+              puts pos
+              possibles = possibles.product(@players.select{|r| r.position == pos }).map(&:flatten)
               puts possibles.count
+
+              #puts 'reject weaklings'
+              #puts possibles.count
+              
               #delete now so we don't need to create more lineups than needed
               if index.odd?
-                possibles.delete_if {|x| x.uniq.count != x.count }
+                possibles.reject! {|x| x.uniq.count != x.count }
+                possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) < e1.sum(&:salary) and e2.sum(&:fd_score) > e1.sum(&:fd_score) } }
+
                 puts possibles.count
-              end
-              
+              end             
 
             end
         end
         
-      possibles.each do |lineup|  
-         #get players in order so we can use uniq later to filter dupes that were created in different order
-         lineup = lineup.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}
-         (lineup.sum(&:salary) <= @max_salary) ? legitimate << lineup : nil # and (lineup.uniq.count == lineup.count)
-        end
+        etime = Time.now
         
-        legitimate
+        puts "Loop1 elapsed #{(etime - btime)} seconds"  
+        
+        possibles.map! {|x| x.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}}
+        possibles.reject! {|x| x.sum(&:salary) > @max_salary }
+
+
+        possibles
   end
 end

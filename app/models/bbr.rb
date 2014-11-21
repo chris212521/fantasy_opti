@@ -138,48 +138,68 @@ class BBR
             end
           end
           
-          puts vals
           rankings << vals
     end
     NBA_Team_Ranking.update_ranking(rankings)
   end
   
-  def self.boxscore_scraper(game_ids, date=nil)
+  def self.boxscore_scraper(game_ids)
+    base_url = "http://www.basketball-reference.com"
+    stat_lines = []
+    
+    puts game_ids
     
     game_ids.each do |gid|
+      url = base_url + gid
+      game_date = gid[/\d{8}/]
+      game_date = game_date.scan(/.{4}|.+/).join("-")
+      game_date = game_date.scan(/.{7}|.+/).join("-")
       
-      url = 'https://www.kimonolabs.com/api/eefuzgva?apikey=771398b183d34e1ede4772328e8c311c'+'&kimpath2='+gid #201403150ATL.html
-      json = RestClient.get url
-      results = JSON[json]['results']['collection1'].collect! { |i| OpenStruct.new(i) }
-      results.reject! { |x| x.points.empty? }
-      
-        results.each do |r|
-          r.player_name = r.player_name["text"]
-          r.game_date = date
-        end
-      
-      NBA_Game_Log.save_game_logs(results)
+      doc = Nokogiri::HTML(open(url))
+      vals = {}
+      stats = doc.xpath('//table[contains(@id, "_basic")]//tbody//tr')
+        
+      stats.each_with_index do |row, index|
+            cols = row.search('td').map{ |x| x.to_s.gsub(/(\<.*\>(?!$)|\<\/td\>$)/,'')} #.map(&:to_s) #stripping nil values
+
+            name = row.search('td/a/text()').map(&:to_s)
+            vals = {
+              :game_date => game_date,
+              :player_name => name[0],
+              :minutes_played => cols[1],
+              :fgm  => cols[2],
+              :fga => cols[3],
+              :fg_pct => cols[4],
+              :tpm => cols[5],
+              :tpa => cols[6],
+              :tp_pct => cols[7],
+              :ftm => cols[8],
+              :fta => cols[9],
+              :ft_pct => cols[10],
+              :orb => cols[11],
+              :drb => cols[12],
+              :trb => cols[13],
+              :assists => cols[14],
+              :steals => cols[15],
+              :blocks => cols[16],
+              :tov => cols[17],
+              :pf => cols[18],
+              :points => cols[19]
+              }
+              puts vals
+              vals[:player_name].nil? ? nil : stat_lines << vals
+          end
+       NBA_Game_Log.save_game_logs(stat_lines)
     end
     
   end
   
   def self.daily_boxscores_links(month, day, year=2014)
-    url = 'https://www.kimonolabs.com/api/b549cn5q?apikey=771398b183d34e1ede4772328e8c311c'+'&month='+month.to_s+'&day='+day.to_s+'&year='+year.to_s
-
-    json = RestClient.get url
+    url = "http://www.basketball-reference.com/boxscores/index.cgi?month="+month+"&day="+day+"&year="+year
+    doc = Nokogiri::HTML(open(url))
+    game_ids = doc.xpath('//a[contains(@href, "/boxscores/20")]').map { |link| link['href'] }
     
-    results = JSON[json]['results']['collection1'].collect! { |i| OpenStruct.new(i) }
-
-    #don't know why the API grabs this game all the time...
-    results.reject! { |x| x.boxscore_links["href"] == "http://www.basketball-reference.com/boxscores/201406150SAS.html" }
-    
-    game_ids = []
-    
-    results.each do |x|
-      game_ids << x.boxscore_links["href"][/\d+\w+.html/]
-    end
-    
-    boxscore_scraper(game_ids, year.to_s+'-'+month.to_s+'-'+day.to_s)
+    self.boxscore_scraper(game_ids)#, year.to_s+'-'+month.to_s+'-'+day.to_s)
   end
   
   #basketball reference player gamelog API
