@@ -49,7 +49,7 @@ class NBA_Lineup < Lineup
   end
   
   def perfect_lineup
-      @players = NBA_Day_Best.site(@site).day(Time.new(2014,11,18).strftime("%d/%m/%Y"))#Date.yesterday.strftime("%d/%m/%Y"))
+      @players = NBA_Day_Best.site(@site).day(Time.new(2014,11,19).strftime("%d/%m/%Y"))#Date.yesterday.strftime("%d/%m/%Y"))
       
       if site == 'DK'
         @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)

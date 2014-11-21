@@ -55,19 +55,21 @@ class Lineup
               puts possibles.count
             else 
               puts pos
-              possibles = possibles.product(@players.select{|r| r.position == pos }).map(&:flatten)
+              #use "include?" to support array positions (FLEX)
+              possibles = possibles.product(@players.select{|r| pos.include?(r.position)}).map(&:flatten) 
               puts possibles.count
 
-              #puts 'reject weaklings'
-              #puts possibles.count
-              
-              #delete now so we don't need to create more lineups than needed
-              if index.odd?
+              if @working_pos.count(pos) > 1 and index == Hash[@working_pos.map.with_index.to_a][pos] or pos.class() == Array
                 possibles.reject! {|x| x.uniq.count != x.count }
-                possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) < e1.sum(&:salary) and e2.sum(&:fd_score) > e1.sum(&:fd_score) } }
+              end
 
-                puts possibles.count
-              end             
+              if league_name == 'NBA'
+                possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) <= e1.sum(&:salary) and e2.sum(&:fd_score) > e1.sum(&:fd_score) } }
+              elsif league_name == 'NFL'
+                possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) <= e1.sum(&:salary) and e2.sum(&:ppr_proj) > e1.sum(&:ppr_proj) } }
+              end
+                
+                puts possibles.count         
 
             end
         end
@@ -78,7 +80,6 @@ class Lineup
         
         possibles.map! {|x| x.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}}
         possibles.reject! {|x| x.sum(&:salary) > @max_salary }
-
 
         possibles
   end
