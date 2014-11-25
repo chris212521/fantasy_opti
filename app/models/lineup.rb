@@ -46,7 +46,6 @@ class Lineup
   def possible_lineups
     #returns all possible combinations, with respect to parameters (salary, positions)
      possibles = []
-     
      btime = Time.now
      @working_pos.each_with_index do |pos, index|
             if index == 0
@@ -59,18 +58,21 @@ class Lineup
               possibles = possibles.product(@players.select{|r| pos.include?(r.position)}).map(&:flatten) 
               puts possibles.count
 
-              if @working_pos.count(pos) > 1 and index == Hash[@working_pos.map.with_index.to_a][pos] or pos.class() == Array
+              if @working_pos.count(pos) > 1 and index == Hash[@working_pos.map.with_index.to_a][pos] or pos.class() == Array or @site=='DK'
+                puts 'REJECTING'
                 possibles.reject! {|x| x.uniq.count != x.count }
               end
-
+              
+              puts possibles.count 
+              puts 'league reject'
+              
               if league_name == 'NBA'
                 possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) <= e1.sum(&:salary) and e2.sum(&:fd_score) > e1.sum(&:fd_score) } }
               elsif league_name == 'NFL'
                 possibles.reject! { |e1| possibles.any? { |e2| e1 != e2 and e2.sum(&:salary) <= e1.sum(&:salary) and e2.sum(&:ppr_proj) > e1.sum(&:ppr_proj) } }
               end
                 
-                puts possibles.count         
-
+              puts possibles.count 
             end
         end
         

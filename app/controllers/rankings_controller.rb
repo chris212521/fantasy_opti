@@ -52,13 +52,16 @@ class RankingsController < ApplicationController
   
   def perfect_lineup
     if params[:site].upcase == 'FD'
-      positions = ['SF','SF','PG','PG','SG','SG','PF','PF','C']
+      positions = ['PG','PG','SG','SG','SF','SF','PF','PF','C']
       salary = 60000
     elsif params[:site].upcase == 'DK'
-      positions = ['PG','G','PG','SG','F','SF','PF','C'] #['PG','SG','SF','PF','C','G','F','UTIL']
+      positions = ['UTIL','G','F','PG','SG','SF','PF','C'] #['PG','SG','SF','PF','C','G','F','UTIL']
+      salary = 50000
+    elsif params[:site].upcase == 'V'
+      positions = ['G','G','F','F','F','C','FLEX','FLEX','SUB'] #['PG','SG','SF','PF','C','G','F','UTIL']
       salary = 50000
     end
-    
+
    @perfect_lineup = NBA_Lineup.new(
                     site: params[:site].upcase,
                     pos: positions,

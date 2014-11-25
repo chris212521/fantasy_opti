@@ -4,7 +4,7 @@ class NBA_Lineup < Lineup
   @@league_name = 'NBA'
   @@dk_positions = ['PG','SG','SF','PF','C','G','F','UTIL']
   @@fd_positions = ['PG','SG','SF','PF','C']
-  @@v_positions = ['C','G','F']
+  @@v_positions = ['G','F','C','SUB']
   @@standard_positions = ['PG','SG','SF','PF','C']
   @@supported_searchable_pos = [2,3,4,5,6,7,8]
   @@current_date = Time.now.strftime("%d/%m/%Y") #Time.new(2014, 11, 1).strftime("%d/%m/%Y")
@@ -49,11 +49,13 @@ class NBA_Lineup < Lineup
   end
   
   def perfect_lineup
-      @players = NBA_Day_Best.site(@site).day(Time.new(2014,11,19).strftime("%d/%m/%Y"))#Date.yesterday.strftime("%d/%m/%Y"))
-      
+      @players = NBA_Day_Best.site(@site).day(Date.yesterday.strftime("%d/%m/%Y"))#Time.new(2014,11,19).strftime("%d/%m/%Y"))
+
       if site == 'DK'
         @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)
       elsif site == 'FD'      
+        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
+      elsif site == 'V'      
         @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
     end
   end
@@ -64,7 +66,11 @@ class NBA_Lineup < Lineup
   
   def self.rankings( args )
     if args[:site].upcase == 'V'
-      NBA_Ranking.position((args[:position].upcase)).site(args[:site].upcase)
+      if args[:position].upcase == 'SUB'
+        NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase).salary_lte(5000)
+      else
+        NBA_Ranking.position((args[:position].upcase)).site(args[:site].upcase)
+      end
     else
       NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase)
     end
@@ -86,6 +92,8 @@ class NBA_Lineup < Lineup
       pos = ['SF','PF']
     elsif pos.upcase == 'UTIL'
       pos = ['PG','SG','SF','PF','C']
+    elsif pos.upcase == 'FLEX' or pos.upcase == 'SUB'
+      pos = ['G','F','C']
     else
       pos = pos.upcase
     end
@@ -99,6 +107,8 @@ class NBA_Lineup < Lineup
             element = ['PF','SF']
           elsif element == "UTIL"
             element = ['PG','SG','SF','PF','C']
+          elsif element.upcase == 'FLEX' or element.upcase == 'SUB'
+            element = ['G','F','C']
           else
             element = element.upcase
           end

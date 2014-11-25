@@ -5,7 +5,7 @@
 <div class="center col-md-8 col-md-offset-2">
 	<% @perfect_lineup.each do |x| %>
 		<%= x.position%>: <%= x.player_name%> - $<%= x.salary%> - <% if params[:site].upcase == 'FD'%><%= x.fd_score %><%elsif params[:site].upcase == 'DK'%> <%= x.dk_score %><%end%> fantasy points,
-		<%= x.points%> points, <%= x.trb%> rebounds, <%= x.assists%> assists, <%= x.blocks%> blocks, <%= x.steals%> steals, TPM: <%= x.tpm%> <br>
+		<%= x.points%> points, <%= x.trb%> rebounds, <%= x.assists%> assists, <%= x.blocks%> blocks, <%= x.steals%> steals, <%= x.tpm%> 3PM <br>
 	<% end %>
 	
 	<%= @perfect_lineup.sum(&:salary) %> - <% if params[:site].upcase == 'FD'%><%= @perfect_lineup.sum(&:fd_score) %><%elsif params[:site].upcase == 'DK'%><%= @perfect_lineup.sum(&:dk_score) %><%end%>
