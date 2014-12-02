@@ -130,7 +130,7 @@ DEPENDENCIES
   jquery-rails
   json
   nokogiri
-  pg (= 0.15.1)
+  pg
   rails (= 4.0.4)
   rails_12factor
   rest-client

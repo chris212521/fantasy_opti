@@ -3,7 +3,7 @@ class NFL_Lineup < Lineup
     
   FFNerd.api_key = "bm37zp5dfhjh"
   @@current_year = 2014
-  @@current_date = 12 #week of season
+  @@current_date = 13 #week of season
   @@flex_pos = ['RB','WR','TE']
   @@standard_positions = ['QB','RB','WR','TE','FLEX','K','DST']
   @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
