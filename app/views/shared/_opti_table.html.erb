@@ -21,7 +21,7 @@
 				      	<% if lineups.league_name  == 'NFL' %>
 				      		<td><%= lineup.sum(&:ppr_proj) %></td>
 				      	<% else %>
-				      		<% if lineups.site  == 'FD' %>
+				      		<% if lineups.site  == 'FD' or lineups.site  == 'V'  %>
 				      			<td><%= lineup.sum(&:fd_score) %></td>
 				      		<% elsif lineups.site  == 'DK'%>
 				      			<td><%= lineup.sum(&:dk_score) %></td>

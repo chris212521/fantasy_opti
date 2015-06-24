@@ -23,4 +23,9 @@ class SitesController < ApplicationController
   def scrape_nba_ir
     Admin.scrape_NBA_IR
   end
+  
+  def load_csv_salaries
+    Admin.load_csv_salaries
+  end
+  
 end

@@ -41,9 +41,11 @@ class NBA_Lineup < Lineup
   def optimal_lineup
 
     if site == 'DK'
-      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(40).uniq.first(20)
+      @optimal_lineup = optimal_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(40).uniq.first(20)
     elsif site == 'FD'      
-      @optimal_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(40).uniq.first(20)
+      @optimal_lineup = optimal_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(40).uniq.first(20)
+    elsif site == 'V'      
+      @optimal_lineup = optimal_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(40).uniq.first(20)
     end
     
   end
@@ -52,11 +54,11 @@ class NBA_Lineup < Lineup
       @players = NBA_Day_Best.site(@site).day(Date.yesterday.strftime("%d/%m/%Y"))#Time.new(2014,11,19).strftime("%d/%m/%Y"))
 
       if site == 'DK'
-        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)
+        @perfect_lineup = perfect_lineups.sort_by{ |ar| ar.sum(&:dk_score) }.reverse.first(1)
       elsif site == 'FD'      
-        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
+        @perfect_lineup = perfect_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
       elsif site == 'V'      
-        @perfect_lineup = possible_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
+        @perfect_lineup = perfect_lineups.sort_by{ |ar| ar.sum(&:fd_score) }.reverse.first(1)
     end
   end
   
@@ -67,12 +69,12 @@ class NBA_Lineup < Lineup
   def self.rankings( args )
     if args[:site].upcase == 'V'
       if args[:position].upcase == 'SUB'
-        NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase).salary_lte(5000)
+        NBA_Ranking.position(groom_position(args)).site(args[:site].upcase).salary_lte(5000)
       else
-        NBA_Ranking.position((args[:position].upcase)).site(args[:site].upcase)
+        NBA_Ranking.position(args[:position].upcase).site(args[:site].upcase)
       end
     else
-      NBA_Ranking.position(groom_position(args[:position].upcase)).site(args[:site].upcase)
+      NBA_Ranking.position(groom_position(args)).site(args[:site].upcase)
     end
      
   end
@@ -85,34 +87,49 @@ class NBA_Lineup < Lineup
     ]
   end
   
-  def self.groom_position(pos)
-    if pos.upcase == 'G'
-      pos = ['PG','SG']
-    elsif pos.upcase == 'F'
-      pos = ['SF','PF']
-    elsif pos.upcase == 'UTIL'
-      pos = ['PG','SG','SF','PF','C']
-    elsif pos.upcase == 'FLEX' or pos.upcase == 'SUB'
-      pos = ['G','F','C']
+  def self.groom_position(args)
+    if args[:site] == 'V'
+        if args[:position].upcase == 'FLEX' or args[:position].upcase == 'SUB'
+          args[:position] = ['G','F','C']
+        else
+          args[:position] = args[:position].upcase
+        end
     else
-      pos = pos.upcase
+        if args[:position].upcase == 'G'
+          args[:position] = ['PG','SG']
+        elsif args[:position].upcase == 'F'
+          args[:position] = ['SF','PF']
+        elsif args[:position].upcase == 'UTIL'
+          args[:position] = ['PG','SG','SF','PF','C']
+        else 
+          args[:position] = args[:position].upcase
+        end
     end
   end
   
   def groom_positions(pos)
-    pos = pos.collect { |element|
+    if self.site == 'V'
+      pos = pos.collect { |element|
+          if element.upcase == 'FLEX' or element.upcase == 'SUB'
+            element = ['G','F','C']
+          else
+            element = element.upcase
+          end
+          }
+    else
+      pos = pos.collect { |element|
           if element == "G"
             element = ['PG','SG']
           elsif element == "F"
             element = ['PF','SF']
           elsif element == "UTIL"
             element = ['PG','SG','SF','PF','C']
-          elsif element.upcase == 'FLEX' or element.upcase == 'SUB'
-            element = ['G','F','C']
           else
             element = element.upcase
           end
           }
+    end
+    
   end
   
 

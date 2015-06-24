@@ -16,6 +16,26 @@ class Admin
     BBR.team_ranking_scraper
   end
   
+  def self.load_csv_salaries
+    require 'csv'
+    
+    base_dir = "csv_import/*"
+    files = Dir.glob(base_dir).map do |f| File.basename f end
+
+   files.each do |f|
+     
+     csv_text = File.read("csv_import/"+f)
+      csv = CSV.parse(csv_text, :headers => true)
+        csv.each do |row|
+          h = row.to_hash
+          if !h["player_name"].blank?
+              Salary.create!(h)
+            end
+        end
+      
+      end
+  end
+  
   def self.update_NFL_week_projections(num=nil)
     #these are special for FFN API
     FFNerd.api_key = "bm37zp5dfhjh"

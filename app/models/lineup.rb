@@ -33,7 +33,7 @@ class Lineup
        dk_positions
      elsif site == 'FD'
        fd_positions
-     elsif site == 'FD'
+     elsif site == 'V'
        v_positions
     end
   end
@@ -43,8 +43,44 @@ class Lineup
  
   end
   
-  def possible_lineups
+  def optimal_lineups
     #returns all possible combinations, with respect to parameters (salary, positions)
+     possibles = []
+     btime = Time.now
+     @working_pos.each_with_index do |pos, index|
+            if index == 0
+              puts pos
+              possibles = @players.select{|r| pos.include?(r.position)} 
+              puts possibles.count
+            else 
+              puts pos
+              #use "include?" to support array positions (FLEX)
+              possibles = possibles.product(@players.select{|r| pos.include?(r.position)}).map(&:flatten) 
+              puts possibles.count
+
+              if @working_pos.count(pos) > 1 and index == Hash[@working_pos.map.with_index.to_a][pos] or pos.class() == Array or @site=='DK'
+                puts 'REJECTING'
+                possibles.reject! {|x| x.uniq.count != x.count }
+                possibles.reject! {|x| x.sum(&:salary) > @max_salary }
+              end
+                
+              puts possibles.count 
+            end
+        end
+        
+        etime = Time.now
+        
+        puts "Loop1 elapsed #{(etime - btime)} seconds"  
+        possibles.reject! {|x| x.sum(&:salary) > @max_salary }
+        possibles.map! {|x| x.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}}
+        
+
+        possibles
+  end
+  
+  def perfect_lineups
+    #returns all possible combinations, with respect to parameters (salary, positions)
+    puts 'wooooo'
      possibles = []
      btime = Time.now
      @working_pos.each_with_index do |pos, index|
@@ -80,8 +116,9 @@ class Lineup
         
         puts "Loop1 elapsed #{(etime - btime)} seconds"  
         
-        possibles.map! {|x| x.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}}
         possibles.reject! {|x| x.sum(&:salary) > @max_salary }
+        possibles.map! {|x| x.sort_by(&:player_name).sort_by {|o| @working_pos.flatten.index(o.position) || 99}}
+        
 
         possibles
   end

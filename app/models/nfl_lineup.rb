@@ -3,7 +3,7 @@ class NFL_Lineup < Lineup
     
   FFNerd.api_key = "bm37zp5dfhjh"
   @@current_year = 2014
-  @@current_date = 13 #week of season
+  @@current_date = 15 #week of season
   @@flex_pos = ['RB','WR','TE']
   @@standard_positions = ['QB','RB','WR','TE','FLEX','K','DST']
   @@dk_positions = ['QB','RB','WR','TE','FLEX','DST']
@@ -33,7 +33,7 @@ class NFL_Lineup < Lineup
   end
 
   def optimal_lineup
-     self.possible_lineups.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(30).uniq.first(10)
+     self.optimal_lineups.sort_by{ |ar| ar.sum(&:ppr_proj) }.reverse.first(30).uniq.first(10)
   end
   
   def set_players
@@ -41,7 +41,7 @@ class NFL_Lineup < Lineup
   end
   
   def self.rankings( args )
-     Ranking.position(groom_position(args[:position].upcase)).week(NFL_Lineup.current_date).site(args[:site].upcase).top_ppd_ppr
+     Ranking.position(groom_position(args)).week(NFL_Lineup.current_date).site(args[:site].upcase).top_ppd_ppr
   end
   
   def self.supported_sites
@@ -53,8 +53,8 @@ class NFL_Lineup < Lineup
   end
   
   #this
-  def self.groom_position(pos)
-    pos.upcase == 'FLEX' ? pos = @@flex_pos : pos = pos.upcase
+  def self.groom_position(args)
+    args[:position].upcase == 'FLEX' ? args[:position] = @@flex_pos : args[:position] = args[:position].upcase
   end
   
   def groom_positions(pos)

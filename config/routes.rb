@@ -7,6 +7,7 @@ FantasyOpti::Application.routes.draw do
   match '/admin',   to: 'sites#admin',   via: 'get'
   match '/nfl_update',   to: 'sites#nfl_update',   via: 'get'
   match '/scrape_nba_daily',   to: 'sites#scrape_nba_daily',   via: 'get'
+  match '/load_csv_salaries',   to: 'sites#load_csv_salaries',   via: 'get'
   match '/scrape_nba_ir',   to: 'sites#scrape_nba_ir',   via: 'get'
   match '/scrape_nba_team_ranks',   to: 'sites#scrape_nba_team_ranks',   via: 'get'
   match '/test',   to: 'sites#index',   via: 'get'
